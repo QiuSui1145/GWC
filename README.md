@@ -36,4 +36,5 @@
 4.[注意]TTS需要本地部署GPT-SoVITS作为后端或使用云端服务。<br>
 5.初次使用请先前往设置配置大模型接口API，本项目兼容OpenAI格式的API接口。<br>
 如果你喜欢本项目请点个Star<br>
-作者主页：https://space.bilibili.com/1764510273?spm_id_from=333.1007.0.0
+作者主页：https://space.bilibili.com/1764510273?spm_id_from=333.1007.0.0<br>
+项目交流群1083739889
