@@ -48,7 +48,7 @@ const DEFAULT_SETTINGS = {
   enableClickExpression: true,
   enableNoLive2DMode: false,
   hideLive2dModel: false,     
-  mainTitleText: 'GWC-Preview',
+  mainTitleText: 'GWC',
   mainTitleColor: '#e0f2fe',
   mainTitleFont: 'serif',
   mainTitleX: 0,
@@ -311,7 +311,7 @@ export default function App() {
   const [localTitleBgImage, setLocalTitleBgImage] = useState('');
 
   const [settings, setSettings] = useState(() => {
-    const saved = localStorage.getItem('live2d_settings_v31') || localStorage.getItem('live2d_settings_v30');
+    const saved = localStorage.getItem('live2d_settings_v32') || localStorage.getItem('live2d_settings_v31') || localStorage.getItem('live2d_settings_v30');
     if (saved) {
       const parsed = JSON.parse(saved);
       if (parsed.currentModelId === undefined) parsed.currentModelId = null;
@@ -339,7 +339,7 @@ export default function App() {
   });
 
   const [memos, setMemos] = useState(() => {
-    const saved = localStorage.getItem('live2d_memos_v31') || localStorage.getItem('live2d_memos_v30');
+    const saved = localStorage.getItem('live2d_memos_v32') || localStorage.getItem('live2d_memos_v31');
     return saved ? JSON.parse(saved) : [];
   });
   
@@ -348,27 +348,27 @@ export default function App() {
   const [newMemoDate, setNewMemoDate] = useState('');
 
   const [sessions, setSessions] = useState(() => {
-    const saved = localStorage.getItem('live2d_sessions_v31') || localStorage.getItem('live2d_sessions_v30');
+    const saved = localStorage.getItem('live2d_sessions_v32') || localStorage.getItem('live2d_sessions_v31');
     return saved ? JSON.parse(saved) : [{ id: Date.now().toString(), title: '新剧情', messages: [], memorySummary: '' }];
   });
 
   const [activeSessionId, setActiveSessionId] = useState(() => {
-    const saved = localStorage.getItem('live2d_active_session_v31') || localStorage.getItem('live2d_active_session_v30');
+    const saved = localStorage.getItem('live2d_active_session_v32') || localStorage.getItem('live2d_active_session_v31');
     return saved || null;
   });
 
   const [saveSlots, setSaveSlots] = useState(() => {
-    const saved = localStorage.getItem('live2d_saves_v31') || localStorage.getItem('live2d_saves_v30');
+    const saved = localStorage.getItem('live2d_saves_v32') || localStorage.getItem('live2d_saves_v31');
     return saved ? JSON.parse(saved) : {};
   });
 
   const [quickSaveData, setQuickSaveData] = useState(() => {
-    const saved = localStorage.getItem('live2d_quicksave_v31') || localStorage.getItem('live2d_quicksave_v30');
+    const saved = localStorage.getItem('live2d_quicksave_v32') || localStorage.getItem('live2d_quicksave_v31');
     return saved ? JSON.parse(saved) : null;
   });
 
   const [autoSaveData, setAutoSaveData] = useState(() => {
-    const saved = localStorage.getItem('live2d_autosave_v31') || localStorage.getItem('live2d_autosave_v30');
+    const saved = localStorage.getItem('live2d_autosave_v32') || localStorage.getItem('live2d_autosave_v31');
     return saved ? JSON.parse(saved) : null;
   });
 
@@ -482,14 +482,14 @@ export default function App() {
     if (!activeSessionId && sessions.length > 0) setActiveSessionId(sessions[0].id);
   }, []);
 
-  useEffect(() => { localStorage.setItem('live2d_settings_v31', JSON.stringify(settings)); }, [settings]);
-  useEffect(() => { localStorage.setItem('live2d_sessions_v31', JSON.stringify(sessions)); }, [sessions]);
-  useEffect(() => { localStorage.setItem('live2d_saves_v31', JSON.stringify(saveSlots)); }, [saveSlots]);
-  useEffect(() => { localStorage.setItem('live2d_quicksave_v31', JSON.stringify(quickSaveData)); }, [quickSaveData]);
-  useEffect(() => { localStorage.setItem('live2d_autosave_v31', JSON.stringify(autoSaveData)); }, [autoSaveData]);
-  useEffect(() => { localStorage.setItem('live2d_memos_v31', JSON.stringify(memos)); }, [memos]);
+  useEffect(() => { localStorage.setItem('live2d_settings_v32', JSON.stringify(settings)); }, [settings]);
+  useEffect(() => { localStorage.setItem('live2d_sessions_v32', JSON.stringify(sessions)); }, [sessions]);
+  useEffect(() => { localStorage.setItem('live2d_saves_v32', JSON.stringify(saveSlots)); }, [saveSlots]);
+  useEffect(() => { localStorage.setItem('live2d_quicksave_v32', JSON.stringify(quickSaveData)); }, [quickSaveData]);
+  useEffect(() => { localStorage.setItem('live2d_autosave_v32', JSON.stringify(autoSaveData)); }, [autoSaveData]);
+  useEffect(() => { localStorage.setItem('live2d_memos_v32', JSON.stringify(memos)); }, [memos]);
   
-  useEffect(() => { if (activeSessionId) { localStorage.setItem('live2d_active_session_v31', activeSessionId); setStorySummary(''); } }, [activeSessionId]);
+  useEffect(() => { if (activeSessionId) { localStorage.setItem('live2d_active_session_v32', activeSessionId); setStorySummary(''); } }, [activeSessionId]);
   useEffect(() => { if (isLogOpen && logEndRef.current) logEndRef.current.scrollIntoView({ behavior: 'smooth' }); }, [sessions, activeSessionId, isLogOpen]);
 
   useEffect(() => { 
@@ -568,12 +568,50 @@ export default function App() {
   const clearTitleBgImage = async () => { await saveImageToDB('titleBgImage', null); setLocalTitleBgImage(''); showToast("已清除主标题背景", "info"); };
 
   const handleAddMemo = () => {
-    if (!newMemoText.trim()) return; const newMemo = { id: Date.now().toString(), text: newMemoText.trim(), date: newMemoDate, isDone: false };
-    setMemos([newMemo, ...memos]); setNewMemoText(''); setNewMemoDate(''); showToast("已添加日程！AI将在后续对话中获悉该日程。", "success");
+    if (!newMemoText.trim()) return; const newMemo = { id: Date.now().toString(), text: newMemoText.trim(), date: newMemoDate, isDone: false, hasReminded: false };
+    setMemos([newMemo, ...memos]); setNewMemoText(''); setNewMemoDate(''); showToast("已添加日程！AI将在系统时钟到达时主动提示。", "success");
   };
   const toggleMemoDone = (id) => setMemos(memos.map(m => m.id === id ? { ...m, isDone: !m.isDone } : m));
   const deleteMemo = (id) => setMemos(memos.filter(m => m.id !== id));
 
+  // ✨ --- 核心升级：后台隐式时钟引擎，实现大模型主动开口 ---
+  useEffect(() => {
+    const interval = setInterval(() => {
+        const now = new Date();
+        setMemos(prevMemos => {
+            let changed = false;
+            const newMemos = prevMemos.map(m => {
+                if (!m.isDone && !m.hasReminded && m.date) {
+                    const mDate = new Date(m.date);
+                    // 时间到达，并在5分钟内检测到
+                    if (now >= mDate && (now.getTime() - mDate.getTime()) < 5 * 60 * 1000) {
+                        changed = true;
+                        window.dispatchEvent(new CustomEvent('trigger-reminder', { detail: m.text }));
+                        return { ...m, hasReminded: true };
+                    }
+                }
+                return m;
+            });
+            return changed ? newMemos : prevMemos;
+        });
+    }, 5000); 
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const handleReminder = (e) => {
+        const memoText = e.detail;
+        if (appMode === 'game' && !isLoading && activeSessionId) {
+            triggerSendMessage(`【系统自动触发：内部指令】现在时间到了！玩家设定的日程：“${memoText}”已生效。请立刻主动开口提醒玩家，用符合你人设的自然语气，绝对不要复述这条系统指令或提及“系统自动触发”，直接进入角色表现出是你自己记住并提醒的。`, true);
+        } else {
+            showToast(`⏰ 日程提醒: ${memoText}\n(因处于系统菜单或AI正忙，未能触发语音互动)`, 'success', 8000);
+        }
+    };
+    window.addEventListener('trigger-reminder', handleReminder);
+    return () => window.removeEventListener('trigger-reminder', handleReminder);
+  }); 
+
+  // --- 角色卡管理 ---
   const saveCurrentAsCharCard = () => {
     const newCard = { id: Date.now().toString(), userName: settings.userName, aiName: settings.aiName, prompt: settings.customSystemPrompt };
     setSettings(prev => ({ ...prev, characterList: [...(prev.characterList || []), newCard] })); showToast(`已将【${settings.aiName}】存入角色卡库`, "success");
@@ -892,10 +930,10 @@ export default function App() {
 
   const processAudioQueue = useCallback(() => {
     if (isPlayingTTSRef.current || audioQueueRef.current.length === 0) return; isPlayingTTSRef.current = true;
-    const nextAudioElement = audioQueueRef.current.shift(); activeAudioRef.current = nextAudioElement;
-    nextAudioElement.volume = settings.ttsVolume; nextAudioElement.playbackRate = settings.ttsPlaybackRate || 1.0; 
-    nextAudioElement.onended = () => { if (ttsPauseRef.current > 0) { ttsTimeoutRef.current = setTimeout(() => { isPlayingTTSRef.current = false; processAudioQueue(); }, ttsPauseRef.current); } else { isPlayingTTSRef.current = false; processAudioQueue(); } };
-    nextAudioElement.play().catch(e => { console.warn("TTS 播放被中断或失败:", e); isPlayingTTSRef.current = false; processAudioQueue(); });
+    const nextUrl = audioQueueRef.current.shift(); activeAudioRef.current = new window.Audio(nextUrl);
+    activeAudioRef.current.volume = settings.ttsVolume; activeAudioRef.current.playbackRate = settings.ttsPlaybackRate || 1.0; 
+    activeAudioRef.current.onended = () => { URL.revokeObjectURL(nextUrl); if (ttsPauseRef.current > 0) { ttsTimeoutRef.current = setTimeout(() => { isPlayingTTSRef.current = false; processAudioQueue(); }, ttsPauseRef.current); } else { isPlayingTTSRef.current = false; processAudioQueue(); } };
+    activeAudioRef.current.play().catch(e => { console.warn("TTS 播放失败:", e); isPlayingTTSRef.current = false; processAudioQueue(); });
   }, [settings.ttsPlaybackRate, settings.ttsVolume]);
 
   const ttsPauseRef = useRef(settings.ttsSentencePause);
@@ -905,24 +943,32 @@ export default function App() {
     if (!settings.ttsEnabled || !settings.ttsUrlTemplate || !text.trim() || settings.workMode) return;
     try {
       const url = settings.ttsUrlTemplate.replace('{text}', encodeURIComponent(text.trim())).replace('{lang}', settings.ttsLanguage).replace('{ref_audio}', encodeURIComponent(settings.ttsRefAudio)).replace('{ref_text}', encodeURIComponent(settings.ttsRefText)).replace('{ref_lang}', settings.ttsRefLang);
-      const preloader = new window.Audio(); preloader.preload = 'auto'; preloader.src = url; audioQueueRef.current.push(preloader); processAudioQueue();
+      const preloader = new window.Audio(); preloader.preload = 'auto'; preloader.src = url; audioQueueRef.current.push(url); preloader.load(); processAudioQueue();
     } catch (error) {}
   }, [settings, processAudioQueue]);
 
   const clearTTSQueue = useCallback(() => {
-    audioQueueRef.current.forEach(a => { a.pause(); a.src = ''; }); audioQueueRef.current = [];
-    if (activeAudioRef.current) { activeAudioRef.current.pause(); activeAudioRef.current.src = ''; activeAudioRef.current = null; }
+    audioQueueRef.current = []; if (activeAudioRef.current) { activeAudioRef.current.pause(); activeAudioRef.current.src = ''; activeAudioRef.current = null; }
     isPlayingTTSRef.current = false; if (ttsTimeoutRef.current) clearTimeout(ttsTimeoutRef.current); 
   }, []);
 
   const handleImageSelect = (e) => { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (ev) => setSelectedImage(ev.target.result); reader.readAsDataURL(file); e.target.value = ''; };
 
-  const handleSendMessage = async () => {
-    if (!inputValue.trim() && !selectedImage) return; if (!activeSessionId || isLoading) return;
-    const userMessage = { role: 'user', content: inputValue.trim() || '请查看此图片', image: selectedImage };
-    setInputValue(''); setSelectedImage(null); setSuggestedReplies([]); setVnPage(0); clearTTSQueue();
-    const updatedMessages = [...(activeSession?.messages || []), userMessage];
-    updateSessionMessages(activeSessionId, [...updatedMessages, { role: 'assistant', content: '', isStreaming: settings.enableStreaming }], updatedMessages.length === 1 ? userMessage.content.slice(0, 15) : undefined);
+  // ✨ 终极版 triggerSendMessage：支持隐藏指令、无感注入和自然语言工具调用
+  const triggerSendMessage = async (overrideText = null, isHidden = false) => {
+    const targetText = overrideText !== null ? overrideText : (inputValue.trim() || '请查看此图片');
+    if (!targetText && !selectedImage) return; 
+    if (!activeSessionId || isLoading) return;
+    
+    const userMessage = { role: 'user', content: targetText, image: isHidden ? null : selectedImage };
+    if (overrideText === null) { setInputValue(''); setSelectedImage(null); setSuggestedReplies([]); setVnPage(0); }
+    clearTTSQueue();
+
+    const currentHistory = activeSession?.messages || [];
+    const uiMessages = isHidden ? [...currentHistory] : [...currentHistory, userMessage];
+    const apiRequestHistory = isHidden ? [...currentHistory, userMessage] : [...currentHistory, userMessage];
+
+    updateSessionMessages(activeSessionId, [...uiMessages, { role: 'assistant', content: '', isStreaming: settings.enableStreaming }], (uiMessages.length === 0 && overrideText === null) ? userMessage.content.slice(0, 15) : undefined);
     setIsLoading(true);
 
     try {
@@ -930,16 +976,26 @@ export default function App() {
       const langMap = { 'zh': '中文', 'ja': '日文', 'en': '英文', 'ko': '韩文' }; const dispLangStr = langMap[settings.displayLanguage] || settings.displayLanguage; const voiceLangStr = langMap[settings.ttsLanguage] || settings.ttsLanguage;
       
       let finalSystemPrompt = settings.customSystemPrompt;
-      const now = new Date(); const timeString = now.toLocaleString('zh-CN', { hour12: false }); let systemStatusInjection = `\n\n【系统实时状态】\n当前现实时间：${timeString}\n`;
+      const now = new Date(); 
+      // 构建安全的时间字符串供模型参考
+      const yyyy = now.getFullYear(); const mm = String(now.getMonth() + 1).padStart(2, '0'); const dd = String(now.getDate()).padStart(2, '0');
+      const hh = String(now.getHours()).padStart(2, '0'); const min = String(now.getMinutes()).padStart(2, '0'); const ss = String(now.getSeconds()).padStart(2, '0');
+      const timeString = `${yyyy}/${mm}/${dd} ${hh}:${min}:${ss}`;
+
+      let systemStatusInjection = `\n\n【系统实时状态】\n当前现实时间：${timeString}\n`;
       const activeMemos = memos.filter(m => !m.isDone);
       if (activeMemos.length > 0) { systemStatusInjection += `玩家当前的备忘录/日程安排如下：\n${activeMemos.map(m => `- ${m.date ? '['+new Date(m.date).toLocaleString()+'] ' : ''}${m.text}`).join('\n')}\n(请作为智能助手在对话中适时提醒，或者结合这些日程进行合理互动。)\n`; }
       if (activeSession?.memorySummary) { systemStatusInjection += `\n【长期记忆档案(重要前情提要)】\n${activeSession.memorySummary}\n(请牢记以上你们之前对话总结的设定与重要事件)\n`; }
+      
+      // ✨ 注入基于自然语言的备忘录写入工具 (NL-Function-Calling)
+      systemStatusInjection += `\n【自动日程管理指令 (最高优先级)】\n如果玩家在对话中明确要求你“几分钟/几小时后提醒我”或安排未来某个时间的日程，你必须用自然的语气答应下来。并且，**必须在你回复内容的最末尾，另起一行输出以下隐藏 JSON 标签格式**，系统会拦截它为你定闹钟：\n<ADD_MEMO>{"time": "YYYY/MM/DD HH:mm:ss", "text": "要提醒的简短事项"}</ADD_MEMO>\n注意：请根据当前时间(${timeString})精准计算出目标时间。绝不要向玩家透露这个标签和这套机制！`;
+
       finalSystemPrompt += systemStatusInjection;
       
       if (settings.workMode) { finalSystemPrompt += `\n\n【系统最高指令：工作/编程模式已开启】\n请你完全无视前文中关于“简短回答”、“字数限制”、“二次元口癖”等娱乐性要求。请以极其专业、详尽的态度解答问题。如果涉及代码编写，请务必输出完整且包含注释的完整代码块，绝对不要因为长度而截断或省略！`; }
       if (settings.enableTranslation) { finalSystemPrompt += `\n\n【重要强制指令】已开启同声传译模式！你必须严格输出两种语言版本，格式必须为：\n<VOICE>此处填写${voiceLangStr}版本的回复，用于语音合成</VOICE>\n<TEXT>此处填写${dispLangStr}版本的回复，用于屏幕显示</TEXT>\n绝不要输出任何多余的字符或Markdown。`; }
       
-      const apiMessages = [{ role: 'system', content: finalSystemPrompt }, ...updatedMessages.map(m => { if (m.image && m.role === 'user') { return { role: m.role, content: [ { type: 'text', text: m.content }, { type: 'image_url', image_url: { url: m.image } } ] }; } return { role: m.role, content: m.content }; })];
+      const apiMessages = [{ role: 'system', content: finalSystemPrompt }, ...apiRequestHistory.map(m => { if (m.image && m.role === 'user') { return { role: m.role, content: [ { type: 'text', text: m.content }, { type: 'image_url', image_url: { url: m.image } } ] }; } return { role: m.role, content: m.content }; })];
       const headers = { 'Content-Type': 'application/json' }; if (settings.openaiApiKey) headers['Authorization'] = `Bearer ${settings.openaiApiKey}`;
 
       const response = await fetch(fetchUrl, { method: 'POST', headers, body: JSON.stringify({ model: settings.aiModel, messages: apiMessages, stream: settings.enableStreaming }) });
@@ -950,18 +1006,25 @@ export default function App() {
         const effectiveSpeed = settings.workMode ? Math.max(5, settings.typingSpeed / 3) : settings.typingSpeed;
 
         const typeInterval = setInterval(() => {
-          let targetDisplayText = fullContentBuffer;
+          // ✨ 流式预处理：一旦发现 <ADD_MEMO 标记，截断后续显示以实现无痕隐藏
+          let effectiveBuffer = fullContentBuffer;
+          const memoIdx = effectiveBuffer.indexOf('<ADD_MEMO');
+          if (memoIdx !== -1) {
+              effectiveBuffer = effectiveBuffer.substring(0, memoIdx);
+          }
+
+          let targetDisplayText = effectiveBuffer;
           if (settings.enableTranslation) {
-             const match = fullContentBuffer.match(/<TEXT>([\s\S]*?)(?:<\/TEXT>|$)/i);
-             if (match) targetDisplayText = match[1]; else if (fullContentBuffer.length > 30 && !/<VOICE>/i.test(fullContentBuffer) && !/<TEXT>/i.test(fullContentBuffer)) { targetDisplayText = fullContentBuffer; } else { targetDisplayText = ""; }
+             const match = effectiveBuffer.match(/<TEXT>([\s\S]*?)(?:<\/TEXT>|$)/i);
+             if (match) targetDisplayText = match[1]; else if (effectiveBuffer.length > 30 && !/<VOICE>/i.test(effectiveBuffer) && !/<TEXT>/i.test(effectiveBuffer)) { targetDisplayText = effectiveBuffer; } else { targetDisplayText = ""; }
           }
           if (displayedContent.length < targetDisplayText.length) {
-            displayedContent += targetDisplayText[displayedContent.length]; updateSessionMessages(activeSessionId, [...updatedMessages, { role: 'assistant', content: displayedContent, isStreaming: true }]);
+            displayedContent += targetDisplayText[displayedContent.length]; updateSessionMessages(activeSessionId, [...uiMessages, { role: 'assistant', content: displayedContent, isStreaming: true }]);
           } else if (networkDone) {
             clearInterval(typeInterval); setIsLoading(false);
-            if (networkError) { showToast(`流式中断: ${networkError.message}`, "error"); updateSessionMessages(activeSessionId, [...updatedMessages, { role: 'assistant', content: displayedContent + `\n[连接中断]`, isError: true }]); } 
+            if (networkError) { showToast(`流式中断: ${networkError.message}`, "error"); updateSessionMessages(activeSessionId, [...uiMessages, { role: 'assistant', content: displayedContent + `\n[连接中断]`, isError: true }]); } 
             else {
-              const finalMessages = [...updatedMessages, { role: 'assistant', content: targetDisplayText.trim() || displayedContent }]; updateSessionMessages(activeSessionId, finalMessages); if (settings.enablePlotOptions) generatePlotOptions(finalMessages); 
+              const finalMessages = [...uiMessages, { role: 'assistant', content: targetDisplayText.trim() || displayedContent }]; updateSessionMessages(activeSessionId, finalMessages); if (settings.enablePlotOptions) generatePlotOptions(finalMessages); 
               if (settings.enableMemory && finalMessages.length >= settings.memoryInterval) { triggerMemoryCompression(activeSessionId, finalMessages, activeSession?.memorySummary); }
             }
           }
@@ -980,13 +1043,17 @@ export default function App() {
                     const data = JSON.parse(trimmedLine.slice(6)); 
                     if (data.choices?.[0]?.delta?.content) {
                        const deltaText = data.choices[0].delta.content; fullContentBuffer += deltaText; 
-                       if (settings.enableTranslation) {
-                           const match = fullContentBuffer.match(/<VOICE>([\s\S]*?)(?:<\/VOICE>|$)/i);
-                           if (match) { const currentVoiceText = match[1]; const newVoiceChunk = currentVoiceText.slice(processedVoiceLength); ttsBuffer += newVoiceChunk; processedVoiceLength = currentVoiceText.length; } else if (fullContentBuffer.length > 30 && !/<VOICE>/i.test(fullContentBuffer) && !/<TEXT>/i.test(fullContentBuffer)) { ttsBuffer += deltaText; }
-                       } else { ttsBuffer += deltaText; }
-                       let matchPunc;
-                       while ((matchPunc = ttsBuffer.match(/^([\s\S]*?[。！？\.\!\?\n，,、]+)/))) {
-                           const chunk = matchPunc[1]; if (chunk.trim()) enqueueTTS(chunk.trim()); ttsBuffer = ttsBuffer.slice(chunk.length);
+                       
+                       // ✨ 如果没开始写备忘标签，才处理 TTS
+                       if (fullContentBuffer.indexOf('<ADD_MEMO') === -1) {
+                           if (settings.enableTranslation) {
+                               const match = fullContentBuffer.match(/<VOICE>([\s\S]*?)(?:<\/VOICE>|$)/i);
+                               if (match) { const currentVoiceText = match[1]; const newVoiceChunk = currentVoiceText.slice(processedVoiceLength); ttsBuffer += newVoiceChunk; processedVoiceLength = currentVoiceText.length; } else if (fullContentBuffer.length > 30 && !/<VOICE>/i.test(fullContentBuffer) && !/<TEXT>/i.test(fullContentBuffer)) { ttsBuffer += deltaText; }
+                           } else { ttsBuffer += deltaText; }
+                           let matchPunc;
+                           while ((matchPunc = ttsBuffer.match(/^([\s\S]*?[。！？\.\!\?\n，,、]+)/))) {
+                               const chunk = matchPunc[1]; if (chunk.trim()) enqueueTTS(chunk.trim()); ttsBuffer = ttsBuffer.slice(chunk.length);
+                           }
                        }
                     }
                   } catch (e) {}
@@ -994,19 +1061,56 @@ export default function App() {
               }
             }
           }
-        } catch (err) { networkError = err; } finally { networkDone = true; if (ttsBuffer.trim()) enqueueTTS(ttsBuffer.trim()); }
+        } catch (err) { networkError = err; } finally { 
+          networkDone = true; 
+          if (ttsBuffer.trim()) enqueueTTS(ttsBuffer.trim()); 
+          // ✨ 网络完全接收完毕后，解析潜伏的自动备忘录
+          const memoMatch = fullContentBuffer.match(/<ADD_MEMO>([\s\S]*?)(?:<\/ADD_MEMO>|$)/i);
+          if (memoMatch) {
+             try {
+                 const memoData = JSON.parse(memoMatch[1].trim());
+                 if (memoData.time && memoData.text) {
+                     const memoDate = new Date(memoData.time);
+                     if (!isNaN(memoDate.getTime())) {
+                         setMemos(prev => [{ id: Date.now().toString(), text: memoData.text, date: memoData.time, isDone: false, hasReminded: false }, ...prev]);
+                         showToast(`已自动为您添加日程: ${memoData.text}`, "success");
+                     }
+                 }
+             } catch(e) { console.log("解析自动备忘录JSON失败", e); }
+          }
+        }
 
       } else {
         const data = await response.json(); if (data.error) throw new Error(data.error.message || 'API 返回错误');
         let assistantContent = data.choices?.[0]?.message?.content || data.message || "";
+        
+        // ✨ 非流式处理自动备忘录提取
+        const memoMatch = assistantContent.match(/<ADD_MEMO>([\s\S]*?)(?:<\/ADD_MEMO>|$)/i);
+        if (memoMatch) {
+             try {
+                 const memoData = JSON.parse(memoMatch[1].trim());
+                 if (memoData.time && memoData.text) {
+                     const memoDate = new Date(memoData.time);
+                     if (!isNaN(memoDate.getTime())) {
+                         setMemos(prev => [{ id: Date.now().toString(), text: memoData.text, date: memoData.time, isDone: false, hasReminded: false }, ...prev]);
+                         showToast(`已自动为您添加日程: ${memoData.text}`, "success");
+                     }
+                 }
+             } catch(e) { console.log("解析自动备忘录JSON失败", e); }
+        }
+        
+        assistantContent = assistantContent.replace(/<ADD_MEMO>[\s\S]*?(?:<\/ADD_MEMO>|$)/gi, '').trim();
+
         let displayContent = assistantContent; let voiceContent = assistantContent;
         if (settings.enableTranslation) { displayContent = (assistantContent.match(/<TEXT>([\s\S]*?)(?:<\/TEXT>|$)/i)?.[1] || assistantContent).trim(); voiceContent = (assistantContent.match(/<VOICE>([\s\S]*?)(?:<\/VOICE>|$)/i)?.[1] || assistantContent).trim(); }
-        const finalMessages = [...updatedMessages, { role: 'assistant', content: displayContent }]; updateSessionMessages(activeSessionId, finalMessages); enqueueTTS(voiceContent); 
+        const finalMessages = [...uiMessages, { role: 'assistant', content: displayContent }]; updateSessionMessages(activeSessionId, finalMessages); enqueueTTS(voiceContent); 
         if (settings.enablePlotOptions) generatePlotOptions(finalMessages); setIsLoading(false);
         if (settings.enableMemory && finalMessages.length >= settings.memoryInterval) { triggerMemoryCompression(activeSessionId, finalMessages, activeSession?.memorySummary); }
       }
-    } catch (error) { showToast(`发送失败: ${error.message}`, "error"); updateSessionMessages(activeSessionId, [...updatedMessages, { role: 'assistant', content: `[系统错误]: ${error.message}`, isError: true }]); setIsLoading(false); }
+    } catch (error) { showToast(`发送失败: ${error.message}`, "error"); updateSessionMessages(activeSessionId, [...uiMessages, { role: 'assistant', content: `[系统错误]: ${error.message}`, isError: true }]); setIsLoading(false); }
   };
+
+  const handleSendMessage = () => triggerSendMessage();
 
   const updateSessionMessages = (id, newMessages, newTitle) => {
     setSessions(prev => prev.map(s => s.id === id ? { ...s, messages: newMessages, title: newTitle || s.title } : s));
@@ -1017,20 +1121,11 @@ export default function App() {
   const handleStartGame = () => { 
     if (autoSaveData && autoSaveData.messages && autoSaveData.messages.length > 0) {
       setConfirmDialog({
-        isOpen: true,
-        text: '检测到存在【自动存档】记录！\n开始新剧情将会覆盖该记录。\n是否需要将其迁移至常规存档位进行备份？',
-        confirmText: '迁移备份并开始',
-        cancelText: '取消',
-        thirdButton: {
-          text: '直接覆盖开始',
-          onClick: () => { setConfirmDialog({ isOpen: false, text: '', onConfirm: null }); createNewSession(); setAppMode('game'); }
-        },
+        isOpen: true, text: '检测到存在【自动存档】记录！\n开始新剧情将会覆盖该记录。\n是否需要将其迁移至常规存档位进行备份？', confirmText: '迁移备份并开始', cancelText: '取消',
+        thirdButton: { text: '直接覆盖开始', onClick: () => { setConfirmDialog({ isOpen: false, text: '', onConfirm: null }); createNewSession(); setAppMode('game'); } },
         onConfirm: () => {
           let targetId = 1; while (saveSlots[targetId] && targetId <= 100) targetId++;
-          if (targetId <= 100) {
-            const newSave = { id: targetId, title: `[${settings.aiName}自动保存迁移]`, date: autoSaveData.date || new Date().toLocaleString(), messages: autoSaveData.messages };
-            setSaveSlots(prev => ({ ...prev, [targetId]: newSave })); showToast(`已成功迁移至 No.${String(targetId).padStart(3, '0')} 存档`, 'success');
-          } else { showToast('常规存档位已满，备份失败！将直接开始新剧情。', 'error'); }
+          if (targetId <= 100) { const newSave = { id: targetId, title: `[${settings.aiName}自动保存迁移]`, date: autoSaveData.date || new Date().toLocaleString(), messages: autoSaveData.messages }; setSaveSlots(prev => ({ ...prev, [targetId]: newSave })); showToast(`已成功迁移至 No.${String(targetId).padStart(3, '0')} 存档`, 'success'); } else { showToast('常规存档位已满，备份失败！将直接开始新剧情。', 'error'); }
           setConfirmDialog({ isOpen: false, text: '', onConfirm: null }); createNewSession(); setAppMode('game');
         }
       });
@@ -1174,7 +1269,7 @@ export default function App() {
               </div>
             </div>
           </div>
-          <div className="absolute bottom-6 right-8 text-white/60 font-bold text-sm drop-shadow-md pointer-events-none">v1.9Preview</div>
+          <div className="absolute bottom-6 right-8 text-white/60 font-bold text-sm drop-shadow-md pointer-events-none">v2.0</div>
         </div>
       )}
 
@@ -1298,12 +1393,12 @@ export default function App() {
           <div className="flex-1 px-12 py-4 flex flex-col w-full max-w-7xl mx-auto">
              {slPage === 1 && (
                <div className="mb-4 flex flex-col md:flex-row gap-4">
-                 <div onClick={() => slMode === 'load' ? handleQuickLoad() : handleQuickSave()} className="flex-1 group relative h-16 bg-gradient-to-r from-amber-500/90 to-orange-400/90 border-2 border-white/80 rounded-sm p-3 cursor-pointer hover:border-white shadow-lg transition-all overflow-hidden flex items-center justify-between px-6">
+                 <div onClick={() => slMode === 'load' ? handleQuickLoad() : handleQuickSave()} className="flex-1 group relative w-full h-16 bg-gradient-to-r from-amber-500/90 to-orange-400/90 border-2 border-white/80 rounded-sm p-3 cursor-pointer hover:border-white shadow-lg transition-all overflow-hidden flex items-center justify-between px-6">
                    <div className="flex items-center gap-4"><span className="text-white font-black text-lg drop-shadow-md italic">No.000</span><span className="text-white font-bold text-lg drop-shadow-md">{quickSaveData ? quickSaveData.title : 'No Data (快捷栏位)'}</span></div>
                    <div className="text-white/80 text-sm font-bold tracking-wider">{quickSaveData ? quickSaveData.date : ''}</div>
                    <div className="absolute inset-0 bg-white/0 group-hover:bg-white/20 transition-colors"></div>
                  </div>
-                 <div onClick={() => slMode === 'load' ? handleAutoLoad() : showToast('自动存档位仅供读取，系统会在后台自动覆盖。', 'info')} className="flex-1 group relative h-16 bg-gradient-to-r from-cyan-600/90 to-blue-500/90 border-2 border-white/80 rounded-sm p-3 cursor-pointer hover:border-white shadow-lg transition-all overflow-hidden flex items-center justify-between px-6">
+                 <div onClick={() => slMode === 'load' ? handleAutoLoad() : showToast('自动存档位仅供读取，系统会在后台自动覆盖。', 'info')} className="flex-1 group relative w-full h-16 bg-gradient-to-r from-cyan-600/90 to-blue-500/90 border-2 border-white/80 rounded-sm p-3 cursor-pointer hover:border-white shadow-lg transition-all overflow-hidden flex items-center justify-between px-6">
                    <div className="flex items-center gap-4"><span className="text-white font-black text-lg drop-shadow-md italic">AUTO</span><span className="text-white font-bold text-lg drop-shadow-md">{autoSaveData ? autoSaveData.title : 'No Data (自动存档)'}</span></div>
                    <div className="text-white/80 text-sm font-bold tracking-wider">{autoSaveData ? autoSaveData.date : ''}</div>
                    <div className="absolute inset-0 bg-white/0 group-hover:bg-white/20 transition-colors"></div>
@@ -1769,6 +1864,7 @@ export default function App() {
                 </div>
               )}
 
+
               {/* 7. 关于 Tab */}
               {settingsTab === 'about' && (
                 <div className="space-y-8 animate-fade-in">
@@ -1826,10 +1922,11 @@ export default function App() {
                 </div>
               )}
 
+
             </div>
             {/* Footer 区域 */}
             <div className="h-16 bg-[#2c2b29] shrink-0 flex justify-between items-center px-8 border-t-[3px] border-[#ba3f42]">
-              <div className="text-white/30 text-[10px] font-black tracking-widest uppercase">GalGame Web Chat Settings-Dev By Qys-</div>
+              <div className="text-white/30 text-[10px] font-black tracking-widest uppercase">GalGame Web Chat Settings By Qys</div>
               <div className="flex gap-4">
                 <button onClick={handleReturnToTitle} className="bg-transparent hover:bg-white/10 text-white/80 border border-white/20 px-6 py-2 rounded-full font-bold text-sm transition-colors flex items-center gap-2"><ArrowLeft size={16}/> 返回标题画面</button>
                 <button onClick={handleExitGame} className="bg-transparent hover:bg-red-500/20 text-red-300 border border-red-500/30 px-6 py-2 rounded-full font-bold text-sm transition-colors flex items-center gap-2 mr-4"><LogOut size={16}/> 退出游戏</button>
