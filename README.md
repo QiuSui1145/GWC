@@ -3,6 +3,8 @@
 这是一个基于 React + Vite + Tailwind CSS 构建的 Web 端全沉浸式视觉小说（GalGame）风格 AI 聊天应用。它不仅是一个聊天窗口，更是一个集成了 **Live2D 动态同步**、**长期记忆流**、**隐式日程管家**机制的赛博私人助理。
 
 项目完全运行在浏览器纯前端环境中，数据采用 IndexedDB 本地存储，绝对保障您的隐私安全。
+<img width="1648" height="972" alt="屏幕截图 2026-03-22 105230" src="https://github.com/user-attachments/assets/8f4adbac-3e02-4167-a768-e87bc395ed61" />
+<img width="2461" height="1473" alt="屏幕截图 2026-03-22 105405" src="https://github.com/user-attachments/assets/0f1f354e-260a-4df9-975b-8497b33053a6" />
 
 ## ✨ 核心特性 (Features)
 
@@ -23,12 +25,16 @@
 ---
 
 ## 🚀 快速开始 (Quick Start)
+<img width="2458" height="1471" alt="屏幕截图 2026-03-22 105045" src="https://github.com/user-attachments/assets/fd64492b-f892-41a0-82ef-6933616e0e61" />
 
 本项目环境依赖于 **Node.js**。如果您电脑上还未安装，请先前往 [Node.js 官网](https://nodejs.org/) 下载并安装。
 
 ### 选项 A：小白一键启动版（Windows 推荐）
 1. 克隆或下载本仓库代码到本地。
 2. 双击根目录下的 `启动.bat` 文件。
-3. 脚本会自动为您安装所需依赖并启动本地服务器，随后在浏览器中打开聊天界面。
-4.[注意]TTS需要本地部署GPT-SoVITS作为后端或使用云端服务
-如果你喜欢本项目请点个Star
+3. 脚本会自动为您安装所需依赖并启动本地服务器，随后在浏览器中打开聊天界面。<br>
+4.[注意]TTS需要本地部署GPT-SoVITS作为后端或使用云端服务。<br>
+5.初次使用请先前往设置配置大模型接口API，本项目兼容OpenAI格式的API接口。<br>
+如果你喜欢本项目请点个Star<br>
+作者主页：https://space.bilibili.com/1764510273?spm_id_from=333.1007.0.0<br>
+项目交流群1083739889
