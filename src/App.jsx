@@ -5,9 +5,20 @@ import {
   Image as ImageIcon, Sparkles, BookOpen,
   AlertCircle, CheckCircle, Info, ServerCrash, ChevronDown, Music, Edit3,
   Download, Upload, UserPlus, Smile, Archive, Database, Copy, Play, Type,
-  Monitor, Mic, FileText, ArrowLeft, LogOut, Eye, User, Calendar, CheckSquare, Clock
+  Monitor, Mic, FileText, ArrowLeft, LogOut, Eye, User, Calendar, CheckSquare, Clock, Video, Camera
 } from 'lucide-react';
 
+// --- 全局脚本加载工具 ---
+const injectScript = (src) => new Promise((resolve, reject) => { 
+  if (document.querySelector(`script[src="${src}"]`)) return resolve(); 
+  const script = document.createElement('script'); 
+  script.src = src; 
+  script.onload = resolve; 
+  script.onerror = reject; 
+  document.head.appendChild(script); 
+});
+
+// --- 默认设置 ---
 const DEFAULT_SETTINGS = {
   openaiBaseUrl: '',
   openaiApiKey: '123',
@@ -75,9 +86,33 @@ const DEFAULT_SETTINGS = {
   enableMemory: false,
   memoryInterval: 150,
   enableAutoSave: false,
-  autoSaveInterval: 5
+  autoSaveInterval: 5,
+  enableProactiveChat: false,
+  proactiveMinInterval: 3,
+  proactiveMaxInterval: 10,
+  enableFaceTracking: false,
+  enableCameraPreview: false,
+  // ✨ 新增：自定义快捷栏显隐控制
+  shortcuts: {
+    save: true, load: true, quickSave: true, quickLoad: true, skip: true,
+    bg: true, model: true, expression: true, memo: true, workMode: true,
+    faceTracking: true, hideModel: true, bgm: true, plot: true, tts: true, log: true
+  }
 };
 
+// --- 快捷栏定义 ---
+const SHORTCUT_DEFS = [
+  { id: 'save', label: '保存 (S)' }, { id: 'load', label: '读取 (L)' },
+  { id: 'quickSave', label: '快存 (QS)' }, { id: 'quickLoad', label: '快读 (QL)' },
+  { id: 'skip', label: '跳过 (SKIP)' }, { id: 'bg', label: '背景切换' },
+  { id: 'model', label: '模型切换' }, { id: 'expression', label: '表情切换' },
+  { id: 'memo', label: '备忘/日程' }, { id: 'workMode', label: '工作模式' },
+  { id: 'faceTracking', label: '实时面捕' }, { id: 'hideModel', label: '模型显隐' },
+  { id: 'bgm', label: 'BGM 控制' }, { id: 'plot', label: '推演选项' },
+  { id: 'tts', label: 'Auto(TTS)' }, { id: 'log', label: 'Log 记录' }
+];
+
+// --- 十六进制颜色转 RGBA 工具 ---
 const hexToRgba = (hex, alpha) => {
   let r = 0, g = 0, b = 0;
   if (hex && hex.length === 4) {
@@ -92,6 +127,7 @@ const hexToRgba = (hex, alpha) => {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
 
+// --- IndexedDB 封装 ---
 const DB_NAME = 'Live2D_Local_Storage';
 const STORE_NAME = 'model_files'; 
 const SETTINGS_STORE = 'app_settings';
@@ -311,7 +347,7 @@ export default function App() {
   const [localTitleBgImage, setLocalTitleBgImage] = useState('');
 
   const [settings, setSettings] = useState(() => {
-    const saved = localStorage.getItem('live2d_settings_v32') || localStorage.getItem('live2d_settings_v31') || localStorage.getItem('live2d_settings_v30');
+    const saved = localStorage.getItem('live2d_settings_v34') || localStorage.getItem('live2d_settings_v33') || localStorage.getItem('live2d_settings_v32');
     if (saved) {
       const parsed = JSON.parse(saved);
       if (parsed.currentModelId === undefined) parsed.currentModelId = null;
@@ -329,6 +365,16 @@ export default function App() {
       if (parsed.memoryInterval === undefined) parsed.memoryInterval = DEFAULT_SETTINGS.memoryInterval;
       if (parsed.enableAutoSave === undefined) parsed.enableAutoSave = DEFAULT_SETTINGS.enableAutoSave;
       if (parsed.autoSaveInterval === undefined) parsed.autoSaveInterval = DEFAULT_SETTINGS.autoSaveInterval;
+      
+      if (parsed.enableProactiveChat === undefined) parsed.enableProactiveChat = DEFAULT_SETTINGS.enableProactiveChat;
+      if (parsed.proactiveMinInterval === undefined) parsed.proactiveMinInterval = DEFAULT_SETTINGS.proactiveMinInterval;
+      if (parsed.proactiveMaxInterval === undefined) parsed.proactiveMaxInterval = DEFAULT_SETTINGS.proactiveMaxInterval;
+
+      // ✨ 注入面捕及快捷栏属性
+      if (parsed.enableFaceTracking === undefined) parsed.enableFaceTracking = DEFAULT_SETTINGS.enableFaceTracking;
+      if (parsed.enableCameraPreview === undefined) parsed.enableCameraPreview = DEFAULT_SETTINGS.enableCameraPreview;
+      if (!parsed.shortcuts) parsed.shortcuts = DEFAULT_SETTINGS.shortcuts;
+      else parsed.shortcuts = { ...DEFAULT_SETTINGS.shortcuts, ...parsed.shortcuts };
 
       if (parsed.ttsUrlTemplate && parsed.ttsUrlTemplate.includes('text_language')) {
         parsed.ttsUrlTemplate = parsed.ttsUrlTemplate.replace('text_language=', 'text_lang=').replace('prompt_language=', 'prompt_lang=');
@@ -339,7 +385,7 @@ export default function App() {
   });
 
   const [memos, setMemos] = useState(() => {
-    const saved = localStorage.getItem('live2d_memos_v32') || localStorage.getItem('live2d_memos_v31');
+    const saved = localStorage.getItem('live2d_memos_v34') || localStorage.getItem('live2d_memos_v33');
     return saved ? JSON.parse(saved) : [];
   });
   
@@ -348,27 +394,27 @@ export default function App() {
   const [newMemoDate, setNewMemoDate] = useState('');
 
   const [sessions, setSessions] = useState(() => {
-    const saved = localStorage.getItem('live2d_sessions_v32') || localStorage.getItem('live2d_sessions_v31');
+    const saved = localStorage.getItem('live2d_sessions_v34') || localStorage.getItem('live2d_sessions_v33');
     return saved ? JSON.parse(saved) : [{ id: Date.now().toString(), title: '新剧情', messages: [], memorySummary: '' }];
   });
 
   const [activeSessionId, setActiveSessionId] = useState(() => {
-    const saved = localStorage.getItem('live2d_active_session_v32') || localStorage.getItem('live2d_active_session_v31');
+    const saved = localStorage.getItem('live2d_active_session_v34') || localStorage.getItem('live2d_active_session_v33');
     return saved || null;
   });
 
   const [saveSlots, setSaveSlots] = useState(() => {
-    const saved = localStorage.getItem('live2d_saves_v32') || localStorage.getItem('live2d_saves_v31');
+    const saved = localStorage.getItem('live2d_saves_v34') || localStorage.getItem('live2d_saves_v33');
     return saved ? JSON.parse(saved) : {};
   });
 
   const [quickSaveData, setQuickSaveData] = useState(() => {
-    const saved = localStorage.getItem('live2d_quicksave_v32') || localStorage.getItem('live2d_quicksave_v31');
+    const saved = localStorage.getItem('live2d_quicksave_v34') || localStorage.getItem('live2d_quicksave_v33');
     return saved ? JSON.parse(saved) : null;
   });
 
   const [autoSaveData, setAutoSaveData] = useState(() => {
-    const saved = localStorage.getItem('live2d_autosave_v32') || localStorage.getItem('live2d_autosave_v31');
+    const saved = localStorage.getItem('live2d_autosave_v34') || localStorage.getItem('live2d_autosave_v33');
     return saved ? JSON.parse(saved) : null;
   });
 
@@ -390,6 +436,8 @@ export default function App() {
   const [storySummary, setStorySummary] = useState('');
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
   const [isFetchingModels, setIsFetchingModels] = useState(false); 
+
+  const [isFaceTrackingLoading, setIsFaceTrackingLoading] = useState(false);
 
   const [toast, setToast] = useState({ visible: false, message: '', type: 'info' });
   const [vnPage, setVnPage] = useState(0); 
@@ -435,6 +483,25 @@ export default function App() {
   const audioQueueRef = useRef([]);    
   const isPlayingTTSRef = useRef(false);
 
+  const videoRef = useRef(null);
+  const faceMeshRef = useRef(null);
+  const cameraRef = useRef(null);
+  const faceRigRef = useRef(null);
+  const faceTrackingTickerRef = useRef(null);
+  
+  const enableFaceTrackingRef = useRef(settings.enableFaceTracking);
+  useEffect(() => { enableFaceTrackingRef.current = settings.enableFaceTracking; }, [settings.enableFaceTracking]);
+
+  const nextProactiveTimeRef = useRef(Date.now() + 999999999);
+  
+  const resetProactiveTimer = useCallback(() => {
+    if (!settings.enableProactiveChat) return;
+    const min = Math.min(settings.proactiveMinInterval, settings.proactiveMaxInterval);
+    const max = Math.max(settings.proactiveMinInterval, settings.proactiveMaxInterval);
+    const randomDelay = Math.floor(Math.random() * ((max - min) * 60000 + 1)) + (min * 60000);
+    nextProactiveTimeRef.current = Date.now() + randomDelay;
+  }, [settings.enableProactiveChat, settings.proactiveMinInterval, settings.proactiveMaxInterval]);
+
   const currentModelConfig = settings.currentModelId && settings.modelConfigs?.[settings.currentModelId] 
       ? settings.modelConfigs[settings.currentModelId] 
       : { 
@@ -467,6 +534,101 @@ export default function App() {
     document.body.removeChild(textArea);
   };
 
+  const startFaceTracking = useCallback(async () => {
+    if (!videoRef.current) return;
+    setIsFaceTrackingLoading(true);
+    try {
+        setLive2dStatus('加载面部捕捉库...');
+        await injectScript('https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js');
+        await injectScript('https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js');
+        await injectScript('https://cdn.jsdelivr.net/npm/kalidokit@1.1.5/dist/kalidokit.umd.js');
+
+        if (!window.FaceMesh || !window.Camera || !window.Kalidokit) {
+            throw new Error("面部捕捉依赖核心库拉取失败，请检查网络连接");
+        }
+
+        const faceMesh = new window.FaceMesh({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+        });
+
+        faceMesh.setOptions({
+            maxNumFaces: 1,
+            refineLandmarks: true,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+        });
+
+        faceMesh.onResults((results) => {
+            if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+                const faceLandmarks = results.multiFaceLandmarks[0];
+                const riggedFace = window.Kalidokit.Face.solve(faceLandmarks, {
+                    runtime: "mediapipe",
+                    video: videoRef.current
+                });
+                faceRigRef.current = riggedFace;
+            } else {
+                faceRigRef.current = null;
+            }
+        });
+
+        faceMeshRef.current = faceMesh;
+
+        const camera = new window.Camera(videoRef.current, {
+            onFrame: async () => {
+                if (faceMeshRef.current && videoRef.current) {
+                    await faceMeshRef.current.send({ image: videoRef.current });
+                }
+            },
+            width: 640,
+            height: 480
+        });
+
+        cameraRef.current = camera;
+        await camera.start();
+        
+        setLive2dStatus('');
+        setIsFaceTrackingLoading(false);
+        showToast("📸 摄像头实时面捕已就绪，保持面容在镜头中央即可驱动模型", "success");
+
+    } catch (err) {
+        setIsFaceTrackingLoading(false);
+        setSettings(s => ({...s, enableFaceTracking: false}));
+        showToast("摄像头捕捉启动遭遇异常：" + err.message, "error");
+        setLive2dStatus('');
+    }
+  }, [showToast]);
+
+  const stopFaceTracking = useCallback(() => {
+    if (cameraRef.current) {
+        cameraRef.current.stop();
+        cameraRef.current = null;
+    }
+    if (faceMeshRef.current) {
+        faceMeshRef.current.close();
+        faceMeshRef.current = null;
+    }
+    if (videoRef.current && videoRef.current.srcObject) {
+        const stream = videoRef.current.srcObject;
+        const tracks = stream.getTracks();
+        tracks.forEach(track => track.stop());
+        videoRef.current.srcObject = null;
+    }
+    faceRigRef.current = null;
+  }, []);
+
+  useEffect(() => {
+    if (settings.enableFaceTracking) {
+        startFaceTracking();
+    } else {
+        stopFaceTracking();
+    }
+  }, [settings.enableFaceTracking, startFaceTracking, stopFaceTracking]);
+
+  useEffect(() => {
+    return () => { stopFaceTracking(); };
+  }, [stopFaceTracking]);
+
+
   useEffect(() => {
     loadImageFromDB('titleBgImage').then(img => { if (img) setLocalTitleBgImage(img); }).catch(console.error);
     loadModelsListFromDB().then(list => { if (list) setModelsList(list); }).catch(console.error);
@@ -482,14 +644,14 @@ export default function App() {
     if (!activeSessionId && sessions.length > 0) setActiveSessionId(sessions[0].id);
   }, []);
 
-  useEffect(() => { localStorage.setItem('live2d_settings_v32', JSON.stringify(settings)); }, [settings]);
-  useEffect(() => { localStorage.setItem('live2d_sessions_v32', JSON.stringify(sessions)); }, [sessions]);
-  useEffect(() => { localStorage.setItem('live2d_saves_v32', JSON.stringify(saveSlots)); }, [saveSlots]);
-  useEffect(() => { localStorage.setItem('live2d_quicksave_v32', JSON.stringify(quickSaveData)); }, [quickSaveData]);
-  useEffect(() => { localStorage.setItem('live2d_autosave_v32', JSON.stringify(autoSaveData)); }, [autoSaveData]);
-  useEffect(() => { localStorage.setItem('live2d_memos_v32', JSON.stringify(memos)); }, [memos]);
+  useEffect(() => { localStorage.setItem('live2d_settings_v34', JSON.stringify(settings)); }, [settings]);
+  useEffect(() => { localStorage.setItem('live2d_sessions_v34', JSON.stringify(sessions)); }, [sessions]);
+  useEffect(() => { localStorage.setItem('live2d_saves_v34', JSON.stringify(saveSlots)); }, [saveSlots]);
+  useEffect(() => { localStorage.setItem('live2d_quicksave_v34', JSON.stringify(quickSaveData)); }, [quickSaveData]);
+  useEffect(() => { localStorage.setItem('live2d_autosave_v34', JSON.stringify(autoSaveData)); }, [autoSaveData]);
+  useEffect(() => { localStorage.setItem('live2d_memos_v34', JSON.stringify(memos)); }, [memos]);
   
-  useEffect(() => { if (activeSessionId) { localStorage.setItem('live2d_active_session_v32', activeSessionId); setStorySummary(''); } }, [activeSessionId]);
+  useEffect(() => { if (activeSessionId) { localStorage.setItem('live2d_active_session_v34', activeSessionId); setStorySummary(''); } }, [activeSessionId]);
   useEffect(() => { if (isLogOpen && logEndRef.current) logEndRef.current.scrollIntoView({ behavior: 'smooth' }); }, [sessions, activeSessionId, isLogOpen]);
 
   useEffect(() => { 
@@ -574,7 +736,22 @@ export default function App() {
   const toggleMemoDone = (id) => setMemos(memos.map(m => m.id === id ? { ...m, isDone: !m.isDone } : m));
   const deleteMemo = (id) => setMemos(memos.filter(m => m.id !== id));
 
-  // ✨ --- 核心升级：后台隐式时钟引擎，实现大模型主动开口 ---
+  useEffect(() => {
+    if (settings.enableProactiveChat) resetProactiveTimer();
+  }, [settings.enableProactiveChat, resetProactiveTimer]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (appMode === 'game' && settings.enableProactiveChat && !isLoading && activeSessionId) {
+        if (Date.now() >= nextProactiveTimeRef.current) {
+          nextProactiveTimeRef.current = Date.now() + 999999999; 
+          window.dispatchEvent(new CustomEvent('trigger-proactive-chat'));
+        }
+      }
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [appMode, settings.enableProactiveChat, isLoading, activeSessionId]);
+
   useEffect(() => {
     const interval = setInterval(() => {
         const now = new Date();
@@ -583,16 +760,11 @@ export default function App() {
             const newMemos = prevMemos.map(m => {
                 if (!m.isDone && !m.hasReminded && m.date) {
                     const mDate = new Date(m.date);
-                    // 时间到达，并在5分钟内检测到
                     if (now >= mDate && (now.getTime() - mDate.getTime()) < 5 * 60 * 1000) {
-                        changed = true;
-                        window.dispatchEvent(new CustomEvent('trigger-reminder', { detail: m.text }));
-                        return { ...m, hasReminded: true };
+                        changed = true; window.dispatchEvent(new CustomEvent('trigger-reminder', { detail: m.text })); return { ...m, hasReminded: true };
                     }
-                }
-                return m;
-            });
-            return changed ? newMemos : prevMemos;
+                } return m;
+            }); return changed ? newMemos : prevMemos;
         });
     }, 5000); 
     return () => clearInterval(interval);
@@ -603,15 +775,21 @@ export default function App() {
         const memoText = e.detail;
         if (appMode === 'game' && !isLoading && activeSessionId) {
             triggerSendMessage(`【系统自动触发：内部指令】现在时间到了！玩家设定的日程：“${memoText}”已生效。请立刻主动开口提醒玩家，用符合你人设的自然语气，绝对不要复述这条系统指令或提及“系统自动触发”，直接进入角色表现出是你自己记住并提醒的。`, true);
-        } else {
-            showToast(`⏰ 日程提醒: ${memoText}\n(因处于系统菜单或AI正忙，未能触发语音互动)`, 'success', 8000);
+        } else { showToast(`⏰ 日程提醒: ${memoText}\n(因处于系统菜单或AI正忙，未能触发语音互动)`, 'success', 8000); }
+    };
+    const handleProactiveChat = () => {
+        if (appMode === 'game' && !isLoading && activeSessionId) {
+            triggerSendMessage(`【系统自动触发：主动搭话】距离上次对话已经过了一段时间，请你现在主动找玩家搭话，随便聊点什么，分享一下心情、日常或者开启一个新话题。语气要自然、生动，符合你的人设。绝对不要复述这条系统指令或提及“系统自动触发”，直接进入角色！`, true);
         }
     };
     window.addEventListener('trigger-reminder', handleReminder);
-    return () => window.removeEventListener('trigger-reminder', handleReminder);
+    window.addEventListener('trigger-proactive-chat', handleProactiveChat);
+    return () => {
+        window.removeEventListener('trigger-reminder', handleReminder);
+        window.removeEventListener('trigger-proactive-chat', handleProactiveChat);
+    }
   }); 
 
-  // --- 角色卡管理 ---
   const saveCurrentAsCharCard = () => {
     const newCard = { id: Date.now().toString(), userName: settings.userName, aiName: settings.aiName, prompt: settings.customSystemPrompt };
     setSettings(prev => ({ ...prev, characterList: [...(prev.characterList || []), newCard] })); showToast(`已将【${settings.aiName}】存入角色卡库`, "success");
@@ -770,13 +948,12 @@ export default function App() {
 
   const loadScripts = async () => {
     if (window.PIXI && window.PIXI.live2d) return true;
-    const loadScript = (src) => new Promise((resolve, reject) => { if (document.querySelector(`script[src="${src}"]`)) return resolve(); const script = document.createElement('script'); script.src = src; script.onload = resolve; script.onerror = reject; document.head.appendChild(script); });
     const backupModule = window.module; const backupExports = window.exports; window.module = undefined; window.exports = undefined;
     try {
-      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.5.10/browser/pixi.min.js');
-      await loadScript('https://cdn.jsdelivr.net/gh/dylanNew/live2d/webgl/Live2D/lib/live2d.min.js');
-      await loadScript('https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js');
-      await loadScript('https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.4.0/dist/index.min.js');
+      await injectScript('https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.5.10/browser/pixi.min.js');
+      await injectScript('https://cdn.jsdelivr.net/gh/dylanNew/live2d/webgl/Live2D/lib/live2d.min.js');
+      await injectScript('https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js');
+      await injectScript('https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.4.0/dist/index.min.js');
       return true;
     } catch (error) { setLive2dStatus('引擎库加载失败'); return false; } finally { if (backupModule !== undefined) window.module = backupModule; if (backupExports !== undefined) window.exports = backupExports; }
   };
@@ -803,7 +980,13 @@ export default function App() {
 
       if (!appRef.current) { appRef.current = new window.PIXI.Application({ view: canvasRef.current, transparent: true, autoDensity: true, resizeTo: containerRef.current, backgroundAlpha: 0 }); }
       const app = appRef.current;
-      if (modelRef.current) { app.stage.removeChild(modelRef.current); modelRef.current.destroy({ children: true, texture: true, baseTexture: true }); modelRef.current = null; }
+      
+      if (modelRef.current) { 
+          if (faceTrackingTickerRef.current) app.ticker.remove(faceTrackingTickerRef.current);
+          app.stage.removeChild(modelRef.current); 
+          modelRef.current.destroy({ children: true, texture: true, baseTexture: true }); 
+          modelRef.current = null; 
+      }
 
       try {
         let patchedFiles = [...files]; const expFiles = patchedFiles.filter(f => f.name && f.name.match(/\.exp3?\.json$/i)); const modelFileIndex = patchedFiles.findIndex(f => f.name && f.name.match(/\.model3?\.json$/i));
@@ -821,13 +1004,95 @@ export default function App() {
           } catch (e) {}
         }
         const Live2DModel = window.PIXI.live2d.Live2DModel; const model = await Live2DModel.from(patchedFiles); if (!isMounted) { model.destroy(); return; }
+        
+        // ✨ --- 核心阻断补丁：强制切断 Live2D 底层 FocusController 的视线追踪 ---
+        if (model.internalModel && model.internalModel.focusController) {
+           const originalFocusUpdate = model.internalModel.focusController.update;
+           model.internalModel.focusController.update = function(dt) {
+               // 一旦面捕开启，直接跳过视线追踪器的底层运算，避免和面捕信号打架
+               if (enableFaceTrackingRef.current) return;
+               originalFocusUpdate.call(this, dt);
+           };
+        }
+        // ✨ -----------------------------------------------------------------
+
         app.stage.addChild(model); modelRef.current = model; updateModelTransform(); setLive2dStatus(''); 
+        
+        // ✨ --- 将面捕系统无缝注入核心模型更新循环 (Ticker Hook) ---
+        if (faceTrackingTickerRef.current) app.ticker.remove(faceTrackingTickerRef.current);
+        const faceTrackingTicker = () => {
+            if (!enableFaceTrackingRef.current || !faceRigRef.current || !modelRef.current) return;
+            const rig = faceRigRef.current;
+            const core = modelRef.current.internalModel.coreModel;
+            if (!core) return;
+            
+            // 兼容 Cubism 2.0 ~ 4.0 参数调用接口
+            const setParam = (id, value) => {
+                if (core.setParameterValueById) core.setParameterValueById(id, value);
+                else if (core.setParamFloat) core.setParamFloat(id, value);
+            };
+
+            // 防抖插值器，平滑消除相机特征点轻微的识别闪烁
+            const lerp = (a, b, t) => a + (b - a) * t;
+            const lerpFactor = 0.5;
+
+            if (!modelRef.current.faceRigPrev) modelRef.current.faceRigPrev = {};
+            const prev = modelRef.current.faceRigPrev;
+
+            const updateParam = (id, val, weight = 1) => {
+                let target = val * weight;
+                if (prev[id] === undefined) prev[id] = target;
+                prev[id] = lerp(prev[id], target, lerpFactor);
+                setParam(id, prev[id]);
+            };
+
+            // 头部三轴姿态映射
+            updateParam('ParamAngleX', rig.head.degrees.y, 1);
+            updateParam('ParamAngleY', rig.head.degrees.x, 1);
+            updateParam('ParamAngleZ', rig.head.degrees.z, 1);
+            
+            // 身体轻度联动偏移，增加整体生动感
+            updateParam('ParamBodyAngleX', rig.head.degrees.y, 0.3);
+            updateParam('ParamBodyAngleY', rig.head.degrees.x, 0.3);
+            updateParam('ParamBodyAngleZ', rig.head.degrees.z, 0.3);
+
+            // 眼部双向开闭
+            updateParam('ParamEyeLOpen', rig.eye.l, 1);
+            updateParam('ParamEyeROpen', rig.eye.r, 1);
+            
+            // 唇部张弛形变
+            updateParam('ParamMouthOpenY', rig.mouth.y, 1);
+            updateParam('ParamMouthForm', rig.mouth.x, 1);
+            
+            // 虹膜注视点追踪
+            if (rig.pupil) {
+                updateParam('ParamEyeBallX', rig.pupil.x, 1);
+                updateParam('ParamEyeBallY', rig.pupil.y, 1);
+            }
+        };
+        app.ticker.add(faceTrackingTicker);
+        faceTrackingTickerRef.current = faceTrackingTicker;
+        // ✨ --------------------------------------------------------
+
         const rawExps = model.internalModel?.settings?.expressions || model.internalModel?.settings?.FileReferences?.Expressions || [];
         const expList = rawExps.map((e, idx) => { let cleanName = e.Name || e.name || e.File || e.file || `表情 ${idx + 1}`; cleanName = cleanName.split('/').pop().replace(/\.exp3?\.json$/i, ''); return { id: e.Name || e.name || idx, name: cleanName }; });
         setExpressions(expList);
         if (settings.currentExpressionId !== null && settings.currentExpressionId !== undefined) { try { model.expression(settings.currentExpressionId); } catch(e) {} }
-        const handleMouseMove = (event) => { if (!modelRef.current) return; modelRef.current.focus(event.clientX, event.clientY); }; window.addEventListener('mousemove', handleMouseMove);
-        return () => window.removeEventListener('mousemove', handleMouseMove);
+        
+        const handleMouseMove = (event) => { 
+            // 外层拦截：阻止原生鼠标事件传递给模型的 focus() 方法
+            if (!modelRef.current || enableFaceTrackingRef.current) return; 
+            modelRef.current.focus(event.clientX, event.clientY); 
+        }; 
+        window.addEventListener('mousemove', handleMouseMove);
+
+        return () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            if (faceTrackingTickerRef.current && appRef.current) {
+                appRef.current.ticker.remove(faceTrackingTickerRef.current);
+            }
+        };
+
       } catch (error) { setLive2dStatus(`本地模型加载失败: ${error.message}`); }
     };
     initLive2D(); return () => { isMounted = false; };
@@ -954,7 +1219,6 @@ export default function App() {
 
   const handleImageSelect = (e) => { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (ev) => setSelectedImage(ev.target.result); reader.readAsDataURL(file); e.target.value = ''; };
 
-  // ✨ 终极版 triggerSendMessage：支持隐藏指令、无感注入和自然语言工具调用
   const triggerSendMessage = async (overrideText = null, isHidden = false) => {
     const targetText = overrideText !== null ? overrideText : (inputValue.trim() || '请查看此图片');
     if (!targetText && !selectedImage) return; 
@@ -977,7 +1241,6 @@ export default function App() {
       
       let finalSystemPrompt = settings.customSystemPrompt;
       const now = new Date(); 
-      // 构建安全的时间字符串供模型参考
       const yyyy = now.getFullYear(); const mm = String(now.getMonth() + 1).padStart(2, '0'); const dd = String(now.getDate()).padStart(2, '0');
       const hh = String(now.getHours()).padStart(2, '0'); const min = String(now.getMinutes()).padStart(2, '0'); const ss = String(now.getSeconds()).padStart(2, '0');
       const timeString = `${yyyy}/${mm}/${dd} ${hh}:${min}:${ss}`;
@@ -987,7 +1250,6 @@ export default function App() {
       if (activeMemos.length > 0) { systemStatusInjection += `玩家当前的备忘录/日程安排如下：\n${activeMemos.map(m => `- ${m.date ? '['+new Date(m.date).toLocaleString()+'] ' : ''}${m.text}`).join('\n')}\n(请作为智能助手在对话中适时提醒，或者结合这些日程进行合理互动。)\n`; }
       if (activeSession?.memorySummary) { systemStatusInjection += `\n【长期记忆档案(重要前情提要)】\n${activeSession.memorySummary}\n(请牢记以上你们之前对话总结的设定与重要事件)\n`; }
       
-      // ✨ 注入基于自然语言的备忘录写入工具 (NL-Function-Calling)
       systemStatusInjection += `\n【自动日程管理指令 (最高优先级)】\n如果玩家在对话中明确要求你“几分钟/几小时后提醒我”或安排未来某个时间的日程，你必须用自然的语气答应下来。并且，**必须在你回复内容的最末尾，另起一行输出以下隐藏 JSON 标签格式**，系统会拦截它为你定闹钟：\n<ADD_MEMO>{"time": "YYYY/MM/DD HH:mm:ss", "text": "要提醒的简短事项"}</ADD_MEMO>\n注意：请根据当前时间(${timeString})精准计算出目标时间。绝不要向玩家透露这个标签和这套机制！`;
 
       finalSystemPrompt += systemStatusInjection;
@@ -1006,7 +1268,6 @@ export default function App() {
         const effectiveSpeed = settings.workMode ? Math.max(5, settings.typingSpeed / 3) : settings.typingSpeed;
 
         const typeInterval = setInterval(() => {
-          // ✨ 流式预处理：一旦发现 <ADD_MEMO 标记，截断后续显示以实现无痕隐藏
           let effectiveBuffer = fullContentBuffer;
           const memoIdx = effectiveBuffer.indexOf('<ADD_MEMO');
           if (memoIdx !== -1) {
@@ -1044,7 +1305,6 @@ export default function App() {
                     if (data.choices?.[0]?.delta?.content) {
                        const deltaText = data.choices[0].delta.content; fullContentBuffer += deltaText; 
                        
-                       // ✨ 如果没开始写备忘标签，才处理 TTS
                        if (fullContentBuffer.indexOf('<ADD_MEMO') === -1) {
                            if (settings.enableTranslation) {
                                const match = fullContentBuffer.match(/<VOICE>([\s\S]*?)(?:<\/VOICE>|$)/i);
@@ -1064,7 +1324,6 @@ export default function App() {
         } catch (err) { networkError = err; } finally { 
           networkDone = true; 
           if (ttsBuffer.trim()) enqueueTTS(ttsBuffer.trim()); 
-          // ✨ 网络完全接收完毕后，解析潜伏的自动备忘录
           const memoMatch = fullContentBuffer.match(/<ADD_MEMO>([\s\S]*?)(?:<\/ADD_MEMO>|$)/i);
           if (memoMatch) {
              try {
@@ -1078,13 +1337,13 @@ export default function App() {
                  }
              } catch(e) { console.log("解析自动备忘录JSON失败", e); }
           }
+          resetProactiveTimer();
         }
 
       } else {
         const data = await response.json(); if (data.error) throw new Error(data.error.message || 'API 返回错误');
         let assistantContent = data.choices?.[0]?.message?.content || data.message || "";
         
-        // ✨ 非流式处理自动备忘录提取
         const memoMatch = assistantContent.match(/<ADD_MEMO>([\s\S]*?)(?:<\/ADD_MEMO>|$)/i);
         if (memoMatch) {
              try {
@@ -1106,6 +1365,7 @@ export default function App() {
         const finalMessages = [...uiMessages, { role: 'assistant', content: displayContent }]; updateSessionMessages(activeSessionId, finalMessages); enqueueTTS(voiceContent); 
         if (settings.enablePlotOptions) generatePlotOptions(finalMessages); setIsLoading(false);
         if (settings.enableMemory && finalMessages.length >= settings.memoryInterval) { triggerMemoryCompression(activeSessionId, finalMessages, activeSession?.memorySummary); }
+        resetProactiveTimer();
       }
     } catch (error) { showToast(`发送失败: ${error.message}`, "error"); updateSessionMessages(activeSessionId, [...uiMessages, { role: 'assistant', content: `[系统错误]: ${error.message}`, isError: true }]); setIsLoading(false); }
   };
@@ -1164,6 +1424,7 @@ export default function App() {
   return (
     <div className="relative h-screen w-full bg-slate-900 overflow-hidden font-sans select-none" onClick={() => { setIsBgMenuOpen(false); setIsExpressionMenuOpen(false); setIsModelMenuOpen(false); }}>
       <style dangerouslySetInnerHTML={{__html: `.hide-scrollbar::-webkit-scrollbar { display: none; } .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; } .text-outline-blue { text-shadow: -1px -1px 0 #1e3a8a, 1px -1px 0 #1e3a8a, -1px 1px 0 #1e3a8a, 1px 1px 0 #1e3a8a; } .light-scrollbar::-webkit-scrollbar { width: 8px; } .light-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.05); border-radius: 4px;} .light-scrollbar::-webkit-scrollbar-thumb { background: #d9c5b2; border-radius: 4px; } .light-scrollbar::-webkit-scrollbar-thumb:hover { background: #ba3f42; } .clip-polygon { clip-path: polygon(0 0, 100% 0, 85% 100%, 0% 100%); }`}} />
+      
       {toast.visible && (
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[99999] transition-all duration-300 pointer-events-auto">
           <div className={`px-6 py-4 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.5)] flex items-start gap-3 backdrop-blur-md max-w-lg w-max ${toast.type === 'error' ? 'bg-red-950/90 border border-red-500/50 text-red-50' : toast.type === 'success' ? 'bg-emerald-950/90 border border-emerald-500/50 text-emerald-50' : 'bg-indigo-950/90 border border-indigo-500/50 text-indigo-50'}`}>
@@ -1226,6 +1487,16 @@ export default function App() {
         <canvas ref={canvasRef} className="w-full h-full block pointer-events-none" />
       </div>
 
+      {/* ✨ 实时面部捕捉摄像头画中画 */}
+      <video 
+        ref={videoRef} 
+        className={`absolute top-6 left-6 z-50 rounded-xl shadow-[0_10px_30px_rgba(0,0,0,0.5)] border-2 border-white/20 object-cover backdrop-blur-sm pointer-events-none transition-all duration-300 ${settings.enableFaceTracking && settings.enableCameraPreview ? 'w-48 h-36 opacity-80' : 'w-0 h-0 opacity-0'}`} 
+        autoPlay 
+        playsInline 
+        muted 
+        style={{ transform: 'scaleX(-1)' }} 
+      />
+
       {isSettingsOpen && visualAdjustMode && (
         <div className="fixed top-8 right-8 z-[99999] w-80 bg-[#fdfaf5]/95 backdrop-blur-xl border-2 border-[#d9c5b2] rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.5)] p-5 text-[#4a4036] pointer-events-auto animate-fade-in">
            <div className="flex justify-between items-center border-b-2 border-dashed border-[#e6d5b8] pb-3 mb-4">
@@ -1269,7 +1540,7 @@ export default function App() {
               </div>
             </div>
           </div>
-          <div className="absolute bottom-6 right-8 text-white/60 font-bold text-sm drop-shadow-md pointer-events-none">v2.0</div>
+          <div className="absolute bottom-6 right-8 text-white/60 font-bold text-sm drop-shadow-md pointer-events-none">v1.6.0</div>
         </div>
       )}
 
@@ -1320,55 +1591,70 @@ export default function App() {
 
             <div className="w-full flex justify-end mt-2 pointer-events-none">
               <div className="flex flex-wrap justify-end items-center backdrop-blur-md rounded-xl px-4 py-2 gap-x-5 gap-y-2.5 text-indigo-200 text-sm font-bold shadow-lg transition-colors duration-300 pointer-events-auto" style={{ backgroundColor: hexToRgba(settings.dialogThemeColor, settings.dialogOpacity), border: settings.dialogOpacity > 0 ? `1px solid rgba(255, 255, 255, ${settings.dialogOpacity * 0.2})` : 'none' }} onClick={e => e.stopPropagation()}>
-                <span className="cursor-pointer hover:text-white transition-colors shrink-0 whitespace-nowrap" onClick={handleAutoSaveSButton} title="一键保存当前进度并命名">S</span>
-                <span className="cursor-pointer hover:text-white transition-colors shrink-0 whitespace-nowrap" onClick={() => { setSlMode('load'); setIsSaveLoadUIOpen(true); }} title="打开存档/读档页面">L</span>
-                <span className="cursor-pointer hover:text-white transition-colors shrink-0 whitespace-nowrap" onClick={handleQuickSave} title="记录临时快捷存档 (不占常规栏位)">QS</span>
-                <span className="cursor-pointer hover:text-white transition-colors shrink-0 whitespace-nowrap" onClick={handleQuickLoad} title="瞬间加载快捷存档">QL</span>
-                <span className="cursor-pointer text-blue-300 hover:text-white transition-colors shrink-0 whitespace-nowrap font-bold" onClick={handleSkip} title="跳过当前对话，直接翻到最后一页">SKIP</span>
-                <span className="hidden sm:inline-block w-px h-4 bg-white/20 mx-1 shrink-0"></span>
-                <div className="relative flex items-center shrink-0">
-                  <span className="cursor-pointer transition-colors flex items-center gap-1 hover:text-white whitespace-nowrap" onClick={(e) => { e.stopPropagation(); setIsBgMenuOpen(!isBgMenuOpen); setIsExpressionMenuOpen(false); setIsModelMenuOpen(false); }} title="切换背景"><ImageIcon size={14} /> 背景</span>
-                  {isBgMenuOpen && (
-                    <div className="absolute bottom-full mb-3 right-0 bg-black/85 backdrop-blur-xl border border-white/20 rounded-xl p-2 w-48 max-h-64 overflow-y-auto flex flex-col shadow-[0_10px_40px_rgba(0,0,0,0.8)] z-50">
-                      {bgList.length === 0 ? (<span className="text-xs text-white/50 px-3 py-2 text-center">暂无背景，请在设置中导入</span>) : (
-                        <>
-                          <button onClick={() => { setSettings(s => ({...s, currentBgId: null})); setIsBgMenuOpen(false); }} className={`shrink-0 text-sm px-3 py-2.5 rounded-lg text-left transition-colors whitespace-nowrap overflow-hidden overflow-ellipsis leading-tight ${settings.currentBgId === null ? 'bg-indigo-600/80 text-white font-bold' : 'hover:bg-white/10 text-white/80'}`}>默认背景 (无)</button>
-                          {bgList.map(bg => <button key={bg.id} onClick={() => { setSettings(s => ({...s, currentBgId: bg.id})); setIsBgMenuOpen(false); }} className={`shrink-0 text-sm px-3 py-2.5 rounded-lg text-left transition-colors whitespace-nowrap overflow-hidden overflow-ellipsis leading-tight ${settings.currentBgId === bg.id ? 'bg-indigo-600/80 text-white font-bold' : 'hover:bg-white/10 text-white/80'}`}>{bg.name}</button>)}
-                        </>
-                      )}
-                    </div>
-                  )}
-                </div>
-                <div className="relative flex items-center shrink-0">
-                  <span className="cursor-pointer transition-colors flex items-center gap-1 hover:text-white whitespace-nowrap" onClick={(e) => { e.stopPropagation(); setIsModelMenuOpen(!isModelMenuOpen); setIsBgMenuOpen(false); setIsExpressionMenuOpen(false); }} title="切换Live2D模型"><User size={14} /> 模型</span>
-                  {isModelMenuOpen && (
-                    <div className="absolute bottom-full mb-3 right-0 bg-black/85 backdrop-blur-xl border border-white/20 rounded-xl p-2 w-48 max-h-64 overflow-y-auto flex flex-col shadow-[0_10px_40px_rgba(0,0,0,0.8)] z-50">
-                      {modelsList.length === 0 ? (<span className="text-xs text-white/50 px-3 py-2 text-center">暂无模型，请在设置中导入</span>) : (
-                        <>{modelsList.map(m => (<button key={m.id} onClick={() => switchModel(m.id)} className={`shrink-0 text-sm px-3 py-2.5 rounded-lg text-left transition-colors whitespace-nowrap overflow-hidden overflow-ellipsis leading-tight ${settings.currentModelId === m.id ? 'bg-indigo-600/80 text-white font-bold' : 'hover:bg-white/10 text-white/80'}`}>{m.name}</button>))}</>
-                      )}
-                    </div>
-                  )}
-                </div>
-                <div className="relative flex items-center shrink-0">
-                  <span className="cursor-pointer transition-colors flex items-center gap-1 hover:text-white whitespace-nowrap" onClick={(e) => { e.stopPropagation(); setIsExpressionMenuOpen(!isExpressionMenuOpen); setIsBgMenuOpen(false); setIsModelMenuOpen(false); }} title="切换模型预设表情"><Smile size={14} /> 表情</span>
-                  {isExpressionMenuOpen && (
-                    <div className="absolute bottom-full mb-3 right-0 bg-black/85 backdrop-blur-xl border border-white/20 rounded-xl p-2 w-48 max-h-64 overflow-y-auto flex flex-col shadow-[0_10px_40px_rgba(0,0,0,0.8)] z-50">
-                      {expressions.length === 0 ? (<span className="text-xs text-white/50 px-3 py-2 text-center">当前模型无预设表情</span>) : (
-                        <>
-                          <button onClick={() => { if(modelRef.current?.internalModel?.motionManager?.expressionManager) modelRef.current.internalModel.motionManager.expressionManager.restoreExpression(); setSettings(s => ({...s, currentExpressionId: null})); setIsExpressionMenuOpen(false); }} className="shrink-0 text-sm px-3 py-2.5 rounded-lg text-left transition-colors whitespace-nowrap overflow-hidden overflow-ellipsis leading-tight hover:bg-white/10 text-white/80 border-b border-white/10">恢复默认</button>
-                          {expressions.map(exp => (<button key={exp.id} onClick={() => { modelRef.current?.expression(exp.id); setSettings(s => ({...s, currentExpressionId: exp.id})); setIsExpressionMenuOpen(false); }} className={`shrink-0 text-sm px-3 py-2.5 rounded-lg text-left transition-colors whitespace-nowrap overflow-hidden overflow-ellipsis leading-tight ${settings.currentExpressionId === exp.id ? 'bg-indigo-600/80 text-white font-bold' : 'hover:bg-white/10 text-white/80'}`}>{exp.name}</button>))}
-                        </>
-                      )}
-                    </div>
-                  )}
-                </div>
-                <span className={`cursor-pointer transition-colors flex items-center gap-1 shrink-0 whitespace-nowrap hover:text-white`} onClick={(e) => { e.stopPropagation(); setIsMemoOpen(true); }} title="记录备忘录或日程安排"><FileText size={14} /> 备忘</span>
-                <span className={`cursor-pointer transition-colors flex items-center gap-1 shrink-0 whitespace-nowrap ${settings.workMode ? 'text-amber-400 drop-shadow-[0_0_5px_rgba(251,191,36,0.8)]' : 'hover:text-white'}`} onClick={(e) => { e.stopPropagation(); const newMode = !settings.workMode; setSettings({...settings, workMode: newMode, ttsEnabled: newMode ? false : settings.ttsEnabled}); if (newMode) showToast("💻 编程模式开启！自动闭麦，解除字数限制，请在此挥洒代码~", "success", 5000); else showToast("🌸 娱乐模式开启！", "info"); }} title="开启/关闭工作编程模式 (解除AI字数限制)"><Monitor size={14} /> {settings.workMode ? '工作:开' : '工作:关'}</span>
-                <span className={`cursor-pointer transition-colors flex items-center gap-1 shrink-0 whitespace-nowrap ${settings.hideLive2dModel ? 'text-white/50 hover:text-white' : 'hover:text-white'}`} onClick={(e) => { e.stopPropagation(); setSettings({...settings, hideLive2dModel: !settings.hideLive2dModel}); }} title="开启/关闭看板娘显示"><Eye size={14} /> {settings.hideLive2dModel ? '模型:隐' : '模型:显'}</span>
-                <span className={`cursor-pointer transition-colors flex items-center gap-1 shrink-0 whitespace-nowrap ${isBgmPlaying ? 'text-emerald-400 drop-shadow-[0_0_5px_rgba(52,211,153,0.8)]' : 'hover:text-white'}`} onClick={toggleBgm} title="播放/暂停背景音乐"><Music size={14} className={isBgmPlaying ? 'animate-pulse' : ''}/> BGM</span>
-                <span className={`cursor-pointer transition-colors flex items-center gap-1 shrink-0 whitespace-nowrap ${settings.enablePlotOptions ? 'text-pink-400 drop-shadow-[0_0_5px_rgba(244,114,182,0.8)]' : 'hover:text-white'}`} onClick={() => setSettings({...settings, enablePlotOptions: !settings.enablePlotOptions})} title="开启/关闭剧情选项推演"><Sparkles size={14} className={settings.enablePlotOptions ? 'animate-pulse' : ''}/> 选项</span>
-                <span className={`cursor-pointer transition-colors shrink-0 whitespace-nowrap ${settings.ttsEnabled ? 'text-white drop-shadow-[0_0_5px_rgba(255,255,255,0.8)]' : 'hover:text-white'}`} onClick={() => setSettings({...settings, ttsEnabled: !settings.ttsEnabled})}>Auto(TTS)</span>
-                <span className="cursor-pointer hover:text-white transition-colors shrink-0 whitespace-nowrap" onClick={() => setIsLogOpen(true)}>Log</span>
+                {/* 动态渲染快捷栏 (根据系统设置) */}
+                {settings.shortcuts?.save && <span className="cursor-pointer hover:text-white transition-colors shrink-0 whitespace-nowrap" onClick={handleAutoSaveSButton} title="一键保存当前进度并命名">S</span>}
+                {settings.shortcuts?.load && <span className="cursor-pointer hover:text-white transition-colors shrink-0 whitespace-nowrap" onClick={() => { setSlMode('load'); setIsSaveLoadUIOpen(true); }} title="打开存档/读档页面">L</span>}
+                {settings.shortcuts?.quickSave && <span className="cursor-pointer hover:text-white transition-colors shrink-0 whitespace-nowrap" onClick={handleQuickSave} title="记录临时快捷存档 (不占常规栏位)">QS</span>}
+                {settings.shortcuts?.quickLoad && <span className="cursor-pointer hover:text-white transition-colors shrink-0 whitespace-nowrap" onClick={handleQuickLoad} title="瞬间加载快捷存档">QL</span>}
+                {settings.shortcuts?.skip && <span className="cursor-pointer text-blue-300 hover:text-white transition-colors shrink-0 whitespace-nowrap font-bold" onClick={handleSkip} title="跳过当前对话，直接翻到最后一页">SKIP</span>}
+                
+                {(settings.shortcuts?.save || settings.shortcuts?.load || settings.shortcuts?.quickSave || settings.shortcuts?.quickLoad || settings.shortcuts?.skip) && 
+                  <span className="hidden sm:inline-block w-px h-4 bg-white/20 mx-1 shrink-0"></span>
+                }
+                
+                {settings.shortcuts?.bg && (
+                  <div className="relative flex items-center shrink-0">
+                    <span className="cursor-pointer transition-colors flex items-center gap-1 hover:text-white whitespace-nowrap" onClick={(e) => { e.stopPropagation(); setIsBgMenuOpen(!isBgMenuOpen); setIsExpressionMenuOpen(false); setIsModelMenuOpen(false); }} title="切换背景"><ImageIcon size={14} /> 背景</span>
+                    {isBgMenuOpen && (
+                      <div className="absolute bottom-full mb-3 right-0 bg-black/85 backdrop-blur-xl border border-white/20 rounded-xl p-2 w-48 max-h-64 overflow-y-auto flex flex-col shadow-[0_10px_40px_rgba(0,0,0,0.8)] z-50">
+                        {bgList.length === 0 ? (<span className="text-xs text-white/50 px-3 py-2 text-center">暂无背景，请在设置中导入</span>) : (
+                          <>
+                            <button onClick={() => { setSettings(s => ({...s, currentBgId: null})); setIsBgMenuOpen(false); }} className={`shrink-0 text-sm px-3 py-2.5 rounded-lg text-left transition-colors whitespace-nowrap overflow-hidden overflow-ellipsis leading-tight ${settings.currentBgId === null ? 'bg-indigo-600/80 text-white font-bold' : 'hover:bg-white/10 text-white/80'}`}>默认背景 (无)</button>
+                            {bgList.map(bg => <button key={bg.id} onClick={() => { setSettings(s => ({...s, currentBgId: bg.id})); setIsBgMenuOpen(false); }} className={`shrink-0 text-sm px-3 py-2.5 rounded-lg text-left transition-colors whitespace-nowrap overflow-hidden overflow-ellipsis leading-tight ${settings.currentBgId === bg.id ? 'bg-indigo-600/80 text-white font-bold' : 'hover:bg-white/10 text-white/80'}`}>{bg.name}</button>)}
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {settings.shortcuts?.model && (
+                  <div className="relative flex items-center shrink-0">
+                    <span className="cursor-pointer transition-colors flex items-center gap-1 hover:text-white whitespace-nowrap" onClick={(e) => { e.stopPropagation(); setIsModelMenuOpen(!isModelMenuOpen); setIsBgMenuOpen(false); setIsExpressionMenuOpen(false); }} title="切换Live2D模型"><User size={14} /> 模型</span>
+                    {isModelMenuOpen && (
+                      <div className="absolute bottom-full mb-3 right-0 bg-black/85 backdrop-blur-xl border border-white/20 rounded-xl p-2 w-48 max-h-64 overflow-y-auto flex flex-col shadow-[0_10px_40px_rgba(0,0,0,0.8)] z-50">
+                        {modelsList.length === 0 ? (<span className="text-xs text-white/50 px-3 py-2 text-center">暂无模型，请在设置中导入</span>) : (
+                          <>{modelsList.map(m => (<button key={m.id} onClick={() => switchModel(m.id)} className={`shrink-0 text-sm px-3 py-2.5 rounded-lg text-left transition-colors whitespace-nowrap overflow-hidden overflow-ellipsis leading-tight ${settings.currentModelId === m.id ? 'bg-indigo-600/80 text-white font-bold' : 'hover:bg-white/10 text-white/80'}`}>{m.name}</button>))}</>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {settings.shortcuts?.expression && (
+                  <div className="relative flex items-center shrink-0">
+                    <span className="cursor-pointer transition-colors flex items-center gap-1 hover:text-white whitespace-nowrap" onClick={(e) => { e.stopPropagation(); setIsExpressionMenuOpen(!isExpressionMenuOpen); setIsBgMenuOpen(false); setIsModelMenuOpen(false); }} title="切换模型预设表情"><Smile size={14} /> 表情</span>
+                    {isExpressionMenuOpen && (
+                      <div className="absolute bottom-full mb-3 right-0 bg-black/85 backdrop-blur-xl border border-white/20 rounded-xl p-2 w-48 max-h-64 overflow-y-auto flex flex-col shadow-[0_10px_40px_rgba(0,0,0,0.8)] z-50">
+                        {expressions.length === 0 ? (<span className="text-xs text-white/50 px-3 py-2 text-center">当前模型无预设表情</span>) : (
+                          <>
+                            <button onClick={() => { if(modelRef.current?.internalModel?.motionManager?.expressionManager) modelRef.current.internalModel.motionManager.expressionManager.restoreExpression(); setSettings(s => ({...s, currentExpressionId: null})); setIsExpressionMenuOpen(false); }} className="shrink-0 text-sm px-3 py-2.5 rounded-lg text-left transition-colors whitespace-nowrap overflow-hidden overflow-ellipsis leading-tight hover:bg-white/10 text-white/80 border-b border-white/10">恢复默认</button>
+                            {expressions.map(exp => (<button key={exp.id} onClick={() => { modelRef.current?.expression(exp.id); setSettings(s => ({...s, currentExpressionId: exp.id})); setIsExpressionMenuOpen(false); }} className={`shrink-0 text-sm px-3 py-2.5 rounded-lg text-left transition-colors whitespace-nowrap overflow-hidden overflow-ellipsis leading-tight ${settings.currentExpressionId === exp.id ? 'bg-indigo-600/80 text-white font-bold' : 'hover:bg-white/10 text-white/80'}`}>{exp.name}</button>))}
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {settings.shortcuts?.memo && <span className={`cursor-pointer transition-colors flex items-center gap-1 shrink-0 whitespace-nowrap hover:text-white`} onClick={(e) => { e.stopPropagation(); setIsMemoOpen(true); }} title="记录备忘录或日程安排"><FileText size={14} /> 备忘</span>}
+                {settings.shortcuts?.workMode && <span className={`cursor-pointer transition-colors flex items-center gap-1 shrink-0 whitespace-nowrap ${settings.workMode ? 'text-amber-400 drop-shadow-[0_0_5px_rgba(251,191,36,0.8)]' : 'hover:text-white'}`} onClick={(e) => { e.stopPropagation(); const newMode = !settings.workMode; setSettings({...settings, workMode: newMode, ttsEnabled: newMode ? false : settings.ttsEnabled}); if (newMode) showToast("💻 编程模式开启！自动闭麦，解除字数限制，请在此挥洒代码~", "success", 5000); else showToast("🌸 娱乐模式开启！", "info"); }} title="开启/关闭工作编程模式 (解除AI字数限制)"><Monitor size={14} /> {settings.workMode ? '工作:开' : '工作:关'}</span>}
+                
+                {settings.shortcuts?.faceTracking && <span className={`cursor-pointer transition-colors flex items-center gap-1 shrink-0 whitespace-nowrap ${settings.enableFaceTracking ? 'text-indigo-300 drop-shadow-[0_0_5px_rgba(165,180,252,0.8)]' : 'hover:text-white'}`} onClick={(e) => { e.stopPropagation(); setSettings({...settings, enableFaceTracking: !settings.enableFaceTracking}); }} title="开启/关闭摄像头实时面捕 (Face Tracking)"><Video size={14} className={isFaceTrackingLoading ? 'animate-pulse' : ''}/> {settings.enableFaceTracking ? '面捕:开' : '面捕:关'}</span>}
+                {settings.shortcuts?.hideModel && <span className={`cursor-pointer transition-colors flex items-center gap-1 shrink-0 whitespace-nowrap ${settings.hideLive2dModel ? 'text-white/50 hover:text-white' : 'hover:text-white'}`} onClick={(e) => { e.stopPropagation(); setSettings({...settings, hideLive2dModel: !settings.hideLive2dModel}); }} title="开启/关闭看板娘显示"><Eye size={14} /> {settings.hideLive2dModel ? '模型:隐' : '模型:显'}</span>}
+                {settings.shortcuts?.bgm && <span className={`cursor-pointer transition-colors flex items-center gap-1 shrink-0 whitespace-nowrap ${isBgmPlaying ? 'text-emerald-400 drop-shadow-[0_0_5px_rgba(52,211,153,0.8)]' : 'hover:text-white'}`} onClick={toggleBgm} title="播放/暂停背景音乐"><Music size={14} className={isBgmPlaying ? 'animate-pulse' : ''}/> BGM</span>}
+                {settings.shortcuts?.plot && <span className={`cursor-pointer transition-colors flex items-center gap-1 shrink-0 whitespace-nowrap ${settings.enablePlotOptions ? 'text-pink-400 drop-shadow-[0_0_5px_rgba(244,114,182,0.8)]' : 'hover:text-white'}`} onClick={() => setSettings({...settings, enablePlotOptions: !settings.enablePlotOptions})} title="开启/关闭剧情选项推演"><Sparkles size={14} className={settings.enablePlotOptions ? 'animate-pulse' : ''}/> 选项</span>}
+                {settings.shortcuts?.tts && <span className={`cursor-pointer transition-colors shrink-0 whitespace-nowrap ${settings.ttsEnabled ? 'text-white drop-shadow-[0_0_5px_rgba(255,255,255,0.8)]' : 'hover:text-white'}`} onClick={() => setSettings({...settings, ttsEnabled: !settings.ttsEnabled})}>Auto(TTS)</span>}
+                {settings.shortcuts?.log && <span className="cursor-pointer hover:text-white transition-colors shrink-0 whitespace-nowrap" onClick={() => setIsLogOpen(true)}>Log</span>}
+                
+                {/* 强制始终显示设置按钮以防锁死 */}
                 <Settings className="w-4 h-4 cursor-pointer hover:text-white transition-colors shrink-0" onClick={() => setIsSettingsOpen(true)} title="系统设置" />
               </div>
             </div>
@@ -1493,7 +1779,7 @@ export default function App() {
         </div>
       )}
 
-      {/* GalGame风味系统设置面板 */}
+      {/* 柚子社风格浅色主题系统设置面板 */}
       {isSettingsOpen && !visualAdjustMode && (
         <div className="fixed inset-0 z-[9999] bg-black/50 backdrop-blur-sm flex items-center justify-center pointer-events-auto">
           <div className="w-[95%] max-w-5xl h-[85vh] bg-[#fdfaf5] rounded-xl overflow-hidden flex flex-col shadow-[0_20px_60px_rgba(0,0,0,0.4)] border-2 border-[#d9c5b2] relative" style={{ backgroundImage: 'repeating-linear-gradient(45deg, rgba(0,0,0,0.015) 0px, rgba(0,0,0,0.015) 2px, transparent 2px, transparent 4px)' }}>
@@ -1503,7 +1789,7 @@ export default function App() {
                   <span className="text-[10px] tracking-widest opacity-80 uppercase font-bold">System Config</span>
                </div>
                <div className="flex-1 flex overflow-x-auto hide-scrollbar bg-[#fdfaf5]/50 items-end px-4 gap-2">
-                  {[ { id: 'visual', icon: <ImageIcon size={18}/>, label: '视觉设定' }, { id: 'text', icon: <Type size={18}/>, label: '文本互动' }, { id: 'sound', icon: <Volume2 size={18}/>, label: '声音设定' }, { id: 'character', icon: <MessageSquare size={18}/>, label: '剧本角色' }, { id: 'api', icon: <ServerCrash size={18}/>, label: '模型接口' }, { id: 'data', icon: <Database size={18}/>, label: '数据管理' }, { id: 'about', icon: <Info size={18}/>, label: '关于' } ].map(tab => (
+                  {[ { id: 'visual', icon: <ImageIcon size={18}/>, label: '视觉设定' }, { id: 'text', icon: <Type size={18}/>, label: '文本互动' }, { id: 'sound', icon: <Volume2 size={18}/>, label: '声音设定' }, { id: 'character', icon: <MessageSquare size={18}/>, label: '剧本角色' }, { id: 'api', icon: <ServerCrash size={18}/>, label: '模型接口' }, { id: 'data', icon: <Database size={18}/>, label: '数据管理' } ].map(tab => (
                     <button key={tab.id} onClick={() => setSettingsTab(tab.id)} className={`flex items-center gap-2 px-5 py-3 font-bold text-sm transition-all border-b-4 rounded-t-lg ${settingsTab === tab.id ? 'bg-white border-[#c44a4a] text-[#c44a4a] shadow-[0_-4px_10px_rgba(0,0,0,0.05)]' : 'border-transparent text-[#7a6b5d] hover:bg-[#e8decb]'}`}>
                       {tab.icon} {tab.label}
                     </button>
@@ -1516,7 +1802,7 @@ export default function App() {
               {settingsTab === 'visual' && (
                 <div className="space-y-8 animate-fade-in">
                   <SettingSectionTitle title="Live2D 模型管理" extra={<button onClick={() => handleEnterVisualAdjust('model')} className="flex items-center gap-1 px-4 py-1.5 bg-[#4fa0d8] hover:bg-[#5db4f0] text-white text-xs font-bold rounded-full transition-colors shadow-sm"><Eye size={14}/> 预览调整</button>} />
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-6">
                     <div className="bg-white/60 p-5 rounded-xl border border-[#e6d5b8] shadow-sm">
                       <label className="block font-bold text-[#ba3f42] mb-2"><span className="text-sm">✱</span> Live2D 模型库管理 (支持多模型)</label>
                       <p className="text-xs text-[#7a6b5d] mb-4 leading-relaxed">选择包含 <code>.model3.json</code> 的模型文件夹。导入后可在底栏快速切换。</p>
@@ -1543,6 +1829,20 @@ export default function App() {
                       </div>
                     </div>
                   </div>
+                  
+                  {/* ✨ 新增的面部捕捉区域 */}
+                  <SettingSectionTitle title="面部捕捉 (Face Tracking)" />
+                  <div className="bg-white/60 p-6 rounded-xl border border-[#e6d5b8] shadow-sm grid grid-cols-1 md:grid-cols-2 gap-8 mb-6">
+                      <div className="flex flex-col gap-3">
+                          <SettingToggle label="开启摄像头实时面部捕捉" value={settings.enableFaceTracking} onChange={v => setSettings({...settings, enableFaceTracking: v})} />
+                          <p className="text-xs text-[#7a6b5d] mt-2 leading-relaxed">基于 Mediapipe 驱动，面部动作将直接映射给当前 Live2D 模型。会自动切断内置的鼠标视线跟随以防鬼畜冲突。</p>
+                      </div>
+                      <div className="flex flex-col gap-3 border-t md:border-t-0 md:border-l border-dashed border-[#e6d5b8] pt-6 md:pt-0 md:pl-6">
+                          <SettingToggle label="显示摄像头画中画预览" value={settings.enableCameraPreview} onChange={v => setSettings({...settings, enableCameraPreview: v})} />
+                          <p className="text-xs text-[#7a6b5d] mt-2 leading-relaxed">在左上角实时显示摄像头回显画面，以便您确认光线和追踪效果。</p>
+                      </div>
+                  </div>
+
                   <div className="bg-white/60 p-5 rounded-xl border border-[#e6d5b8] shadow-sm grid grid-cols-1 md:grid-cols-3 gap-6">
                     <SettingSlider label="独立模型缩放" value={currentModelConfig.scale} min={0.01} max={2} step={0.01} suffix="x" onChange={v => updateModelConfig('scale', v)} />
                     <SettingSlider label="独立水平位置 (X)" value={currentModelConfig.x} min={-1500} max={1500} step={10} suffix="px" onChange={v => updateModelConfig('x', v)} />
@@ -1552,7 +1852,7 @@ export default function App() {
                   <SettingSectionTitle title="背景图管理" />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div className="bg-white/60 p-5 rounded-xl border border-[#e6d5b8] shadow-sm">
-                      <label className="block font-bold text-[#ba3f42] mb-2"><span className="text-sm">✱</span> 导入游戏内背景图</label>
+                      <label className="block font-bold text-[#ba3f42] mb-2"><span className="text-sm">✱</span> 导入游戏内背景图 (支持多张)</label>
                       <p className="text-xs text-[#7a6b5d] mb-4">导入后可在游戏界面的【背景】菜单中快速无缝切换。</p>
                       <input type="file" accept="image/*" multiple onChange={handleBgUpload} className="block w-full text-sm text-[#7a6b5d] file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-bold file:bg-[#8fbf8f] file:text-white hover:file:bg-[#7ebd7e] cursor-pointer mb-4"/>
                       {bgList.length > 0 && (
@@ -1576,12 +1876,55 @@ export default function App() {
                     </div>
                   </div>
                   <div className="border-b-2 border-dashed border-[#e6d5b8] my-6"></div>
-                  
-                  <SettingSectionTitle title="主标题 Live2D 模型排版" />
+                  <SettingSectionTitle title="主标题定制 (Title Screen)" />
                   <div className="bg-white/60 p-6 rounded-xl border border-[#e6d5b8] shadow-sm space-y-6">
                     <div>
+                      <h4 className="text-sm font-bold text-[#4a4036] mb-3">主标题文案与排版</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div>
+                          <label className="block text-xs text-[#7a6b5d] mb-1 font-bold">文字内容</label>
+                          <input type="text" value={settings.mainTitleText} onChange={e => setSettings({...settings, mainTitleText: e.target.value})} className="w-full bg-white border border-[#d9c5b2] text-[#4a4036] rounded-md px-3 py-2 text-sm focus:border-[#ba3f42] outline-none shadow-inner" />
+                        </div>
+                        <div className="flex gap-4">
+                          <div className="flex-1">
+                            <label className="block text-xs text-[#7a6b5d] mb-1 font-bold">字体选择</label>
+                            <select value={settings.mainTitleFont} onChange={e => setSettings({...settings, mainTitleFont: e.target.value})} className="w-full bg-white border border-[#d9c5b2] text-[#4a4036] rounded-md px-2 py-2 text-sm focus:border-[#ba3f42] outline-none shadow-inner">
+                              <option value='"Microsoft YaHei", sans-serif'>默认黑体</option><option value='"SimSun", "Songti SC", serif'>经典宋体</option><option value='"KaiTi", "Kaiti SC", serif'>优雅楷体</option><option value='serif'>标准衬线 (Serif)</option>
+                            </select>
+                          </div>
+                          <div><label className="block text-xs text-[#7a6b5d] mb-1 font-bold">颜色</label><input type="color" value={settings.mainTitleColor} onChange={e => setSettings({...settings, mainTitleColor: e.target.value})} className="h-9 w-14 rounded cursor-pointer bg-white border border-[#d9c5b2] p-0.5 shadow-inner block" /></div>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <SettingSlider label="水平偏移 (X)" value={settings.mainTitleX} min={-800} max={800} step={10} suffix="px" onChange={v => setSettings({...settings, mainTitleX: v})} />
+                        <SettingSlider label="垂直偏移 (Y)" value={settings.mainTitleY} min={-500} max={500} step={10} suffix="px" onChange={v => setSettings({...settings, mainTitleY: v})} />
+                      </div>
+                    </div>
+                    <div className="pt-6 border-t border-[#e6d5b8]">
+                      <h4 className="text-sm font-bold text-[#4a4036] mb-3">副标题文案与排版</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div>
+                          <label className="block text-xs text-[#7a6b5d] mb-1 font-bold">文字内容</label>
+                          <input type="text" value={settings.subTitleText} onChange={e => setSettings({...settings, subTitleText: e.target.value})} className="w-full bg-white border border-[#d9c5b2] text-[#4a4036] rounded-md px-3 py-2 text-sm focus:border-[#ba3f42] outline-none shadow-inner" />
+                        </div>
+                        <div className="flex gap-4">
+                          <div className="flex-1">
+                            <label className="block text-xs text-[#7a6b5d] mb-1 font-bold">字体选择</label>
+                            <select value={settings.subTitleFont} onChange={e => setSettings({...settings, subTitleFont: e.target.value})} className="w-full bg-white border border-[#d9c5b2] text-[#4a4036] rounded-md px-2 py-2 text-sm focus:border-[#ba3f42] outline-none shadow-inner">
+                              <option value='"Microsoft YaHei", sans-serif'>默认黑体</option><option value='"SimSun", "Songti SC", serif'>经典宋体</option><option value='"KaiTi", "Kaiti SC", serif'>优雅楷体</option><option value='sans-serif'>现代无衬线</option>
+                            </select>
+                          </div>
+                          <div><label className="block text-xs text-[#7a6b5d] mb-1 font-bold">颜色</label><input type="color" value={settings.subTitleColor} onChange={e => setSettings({...settings, subTitleColor: e.target.value})} className="h-9 w-14 rounded cursor-pointer bg-white border border-[#d9c5b2] p-0.5 shadow-inner block" /></div>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <SettingSlider label="水平偏移 (X)" value={settings.subTitleX} min={-800} max={800} step={10} suffix="px" onChange={v => setSettings({...settings, subTitleX: v})} />
+                        <SettingSlider label="垂直偏移 (Y)" value={settings.subTitleY} min={-500} max={500} step={10} suffix="px" onChange={v => setSettings({...settings, subTitleY: v})} />
+                      </div>
+                    </div>
+                    <div className="pt-6 border-t border-[#e6d5b8]">
                       <div className="flex justify-between items-center mb-4">
-                         <h4 className="text-sm font-bold text-[#4a4036]">主标题 Live2D 模型位置调整</h4>
+                         <h4 className="text-sm font-bold text-[#4a4036]">主标题 Live2D 模型排版</h4>
                          <button onClick={() => handleEnterVisualAdjust('title_model')} className="flex items-center gap-1 px-4 py-1.5 bg-[#4fa0d8] hover:bg-[#5db4f0] text-white text-xs font-bold rounded-full transition-colors shadow-sm"><Eye size={14}/> 预览调整</button>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
@@ -1603,6 +1946,27 @@ export default function App() {
               {/* 2. 文本互动 Tab */}
               {settingsTab === 'text' && (
                 <div className="space-y-8 animate-fade-in">
+                  
+                  {/* ✨ 新增：快捷栏显示管理 */}
+                  <SettingSectionTitle title="快捷栏显示管理 (界面右下角)" />
+                  <div className="bg-white/60 p-5 rounded-xl border border-[#e6d5b8] shadow-sm">
+                     <p className="text-xs text-[#7a6b5d] mb-4">根据您的需求或屏幕大小，自由开启或隐藏游戏界面右下角的快捷按钮。隐藏不需要的按钮可以让沉浸感更强。</p>
+                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                        {SHORTCUT_DEFS.map(def => (
+                          <button 
+                            key={def.id} 
+                            onClick={() => setSettings(s => ({...s, shortcuts: {...s.shortcuts, [def.id]: !s.shortcuts[def.id]}}))} 
+                            className={`px-3 py-2.5 rounded-lg text-xs font-bold transition-all border flex items-center gap-2 
+                              ${settings.shortcuts[def.id] ? 'bg-[#8fbf8f]/20 text-[#4a4036] border-[#8fbf8f]/50 shadow-inner' : 'bg-white/60 text-[#a89578] border-[#e6d5b8] hover:bg-white'}`}
+                          >
+                            <div className={`w-3 h-3 rounded-full flex-shrink-0 transition-colors ${settings.shortcuts[def.id] ? 'bg-[#ba3f42] shadow-[0_0_5px_rgba(186,63,66,0.6)]' : 'bg-[#d9c5b2]'}`}></div>
+                            {def.label}
+                          </button>
+                        ))}
+                     </div>
+                  </div>
+                  <div className="border-b-2 border-dashed border-[#e6d5b8] my-6"></div>
+
                   <SettingSectionTitle title="文字显示与排版" extra={<button onClick={() => handleEnterVisualAdjust('dialog')} className="flex items-center gap-1 px-4 py-1.5 bg-[#4fa0d8] hover:bg-[#5db4f0] text-white text-xs font-bold rounded-full transition-colors shadow-sm"><Eye size={14}/> 预览调整</button>} />
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-white/60 p-6 rounded-xl border border-[#e6d5b8] shadow-sm">
                     <div>
@@ -1627,6 +1991,23 @@ export default function App() {
                     <div className="md:col-span-2 pt-2 border-t border-dashed border-[#e6d5b8]">
                       <SettingSlider label="对话框/快捷栏 垂直位置偏移" value={settings.dialogPositionY} min={0} max={800} step={10} suffix="px" onChange={v => setSettings({...settings, dialogPositionY: v})} />
                       <p className="text-xs text-[#7a6b5d] mt-2">调整高度可避免文本框遮挡Live2D模型的重要部位。</p>
+                    </div>
+                  </div>
+                  <div className="border-b-2 border-dashed border-[#e6d5b8] my-6"></div>
+
+                  <SettingSectionTitle title="主动搭话机制 (Proactive Chat)" />
+                  <div className="bg-white/60 p-6 rounded-xl border border-[#e6d5b8] shadow-sm space-y-6">
+                    <div className="flex flex-col md:flex-row gap-6">
+                      <div className="flex-1">
+                        <SettingToggle label="开启大模型主动搭话" value={settings.enableProactiveChat} onChange={v => setSettings({...settings, enableProactiveChat: v})} />
+                        <p className="text-xs text-[#7a6b5d] mt-2 leading-relaxed">开启后，若玩家长时间未发言，AI会在设定的时间范围内随机寻找时机主动开启新话题，打破沉默增强陪伴感。</p>
+                      </div>
+                      {settings.enableProactiveChat && (
+                        <div className="flex-1 flex flex-col gap-4 justify-center border-t-2 md:border-t-0 md:border-l-2 border-dashed border-[#e6d5b8] pt-6 md:pt-0 md:pl-6">
+                          <SettingSlider label="最小间隔时长" value={settings.proactiveMinInterval} min={1} max={60} step={1} suffix="分钟" onChange={v => setSettings({...settings, proactiveMinInterval: Math.min(v, settings.proactiveMaxInterval)})} />
+                          <SettingSlider label="最大间隔时长" value={settings.proactiveMaxInterval} min={1} max={120} step={1} suffix="分钟" onChange={v => setSettings({...settings, proactiveMaxInterval: Math.max(v, settings.proactiveMinInterval)})} />
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="border-b-2 border-dashed border-[#e6d5b8] my-6"></div>
@@ -1864,69 +2245,10 @@ export default function App() {
                 </div>
               )}
 
-
-              {/* 7. 关于 Tab */}
-              {settingsTab === 'about' && (
-                <div className="space-y-8 animate-fade-in">
-                  <SettingSectionTitle title="关于 GWC" />
-                  <div className="bg-white/60 p-6 rounded-xl border border-[#e6d5b8] shadow-sm space-y-6">
-                    <div>
-                      <h4 className="text-sm font-bold text-[#ba3f42] mb-4 flex items-center gap-2">
-                        <User size={16}/> 开发者名单
-                      </h4>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm text-left border-collapse">
-                          <thead className="text-xs text-[#7a6b5d] uppercase bg-[#e8decb]/50 border-b border-[#d9c5b2]">
-                            <tr>
-                              <th className="px-4 py-3 font-bold w-16">序号</th>
-                              <th className="px-4 py-3 font-bold">开发者名称</th>
-                              <th className="px-4 py-3 font-bold">负责项目</th>
-                            </tr>
-                          </thead>
-                          <tbody className="text-[#4a4036]">
-                            <tr className="border-b border-dashed border-[#e6d5b8] hover:bg-white/40 transition-colors">
-                              <td className="px-4 py-3 font-bold text-[#ba3f42]">01</td>
-                              <td className="px-4 py-3 font-bold">Qys</td>
-                              <td className="px-4 py-3">核心代码编写、架构设计</td>
-                            </tr>
-                            <tr className="border-b border-dashed border-[#e6d5b8] hover:bg-white/40 transition-colors">
-                              <td className="px-4 py-3 font-bold text-[#ba3f42]">02</td>
-                              <td className="px-4 py-3 font-bold">Qys</td>
-                              <td className="px-4 py-3">视觉打磨</td>
-                            </tr>
-                            <tr className="hover:bg-white/40 transition-colors">
-                              <td className="px-4 py-3 font-bold text-[#ba3f42]">03</td>
-                              <td className="px-4 py-3 font-bold">Qys</td>
-                              <td className="px-4 py-3">Live2D 引擎适配与调试</td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-
-                    <div className="border-t border-dashed border-[#e6d5b8] pt-6">
-                      <h4 className="text-sm font-bold text-[#ba3f42] mb-4 flex items-center gap-2">
-                        <Sparkles size={16}/> 特别鸣谢
-                      </h4>
-                      <div className="flex flex-wrap gap-3">
-                        <span className="px-4 py-2 bg-[#fdfaf5] border border-[#d9c5b2] rounded-lg text-sm text-[#7a6b5d] font-bold shadow-sm hover:border-[#ba3f42] transition-colors cursor-default">Gemini提供的强力辅助</span>
-                        <span className="px-4 py-2 bg-[#fdfaf5] border border-[#d9c5b2] rounded-lg text-sm text-[#7a6b5d] font-bold shadow-sm hover:border-[#ba3f42] transition-colors cursor-default">ATRI提供的灵感</span>
-                        <span className="px-4 py-2 bg-[#fdfaf5] border border-[#d9c5b2] rounded-lg text-sm text-[#7a6b5d] font-bold shadow-sm hover:border-[#ba3f42] transition-colors cursor-default">GPT-SoVITS项目提供的TTS支持</span>
-                        <span className="px-4 py-2 bg-[#fdfaf5] border border-[#d9c5b2] rounded-lg text-sm text-[#7a6b5d] font-bold shadow-sm hover:border-[#ba3f42] transition-colors cursor-default">所有使用者</span>
-                      </div>
-                      <p className="mt-5 text-xs text-[#a89578] leading-relaxed">
-                        本项目完全免费，如果你是付费获取的说明你被骗了！【作者主页：https://space.bilibili.com/1764510273?spm_id_from=333.1007.0.0】
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-
             </div>
             {/* Footer 区域 */}
             <div className="h-16 bg-[#2c2b29] shrink-0 flex justify-between items-center px-8 border-t-[3px] border-[#ba3f42]">
-              <div className="text-white/30 text-[10px] font-black tracking-widest uppercase">GalGame Web Chat Settings By Qys</div>
+              <div className="text-white/30 text-[10px] font-black tracking-widest uppercase">GalGame Web Chat Settings</div>
               <div className="flex gap-4">
                 <button onClick={handleReturnToTitle} className="bg-transparent hover:bg-white/10 text-white/80 border border-white/20 px-6 py-2 rounded-full font-bold text-sm transition-colors flex items-center gap-2"><ArrowLeft size={16}/> 返回标题画面</button>
                 <button onClick={handleExitGame} className="bg-transparent hover:bg-red-500/20 text-red-300 border border-red-500/30 px-6 py-2 rounded-full font-bold text-sm transition-colors flex items-center gap-2 mr-4"><LogOut size={16}/> 退出游戏</button>
