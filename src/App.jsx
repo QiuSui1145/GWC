@@ -5,102 +5,117 @@ import {
   Image as ImageIcon, Sparkles, BookOpen,
   AlertCircle, CheckCircle, Info, ServerCrash, ChevronDown, Music, Edit3,
   Download, Upload, UserPlus, Smile, Archive, Database, Copy, Play, Type,
-  Monitor, Mic, FileText, ArrowLeft, LogOut, Eye, User, Calendar, CheckSquare, Clock, Video, Camera
+  Monitor, Mic, FileText, ArrowLeft, LogOut, Eye, User, Calendar, CheckSquare, Clock, Video, Camera,
+  SkipBack, SkipForward, Pause, Repeat, Shuffle, Repeat1, GripHorizontal, Puzzle, Shield
 } from 'lucide-react';
+
+// ==========================================
+// 🛡️ 兼容性补丁：自动劫持并升级所有旧插件的数据库版本请求
+// ==========================================
+(function() {
+  const _open = indexedDB.open;
+  indexedDB.open = function(name, version) {
+    if (name === 'Live2D_Local_Storage' && version && version < 10) {
+      console.log(`[Compatibility Patch] 已拦截旧插件请求(v${version})，自动升级至 v10 以匹配系统内核。`);
+      return _open.call(indexedDB, name, 10);
+    }
+    return _open.apply(indexedDB, arguments);
+  };
+})();
 
 // --- 全局脚本加载工具 ---
 const injectScript = (src) => new Promise((resolve, reject) => { 
   if (document.querySelector(`script[src="${src}"]`)) return resolve(); 
   const script = document.createElement('script'); 
-  script.src = src; 
-  script.onload = resolve; 
-  script.onerror = reject; 
+  script.src = src; script.onload = resolve; script.onerror = reject; 
   document.head.appendChild(script); 
 });
 
-// --- 默认设置 ---
-const DEFAULT_SETTINGS = {
-  openaiBaseUrl: '',
-  openaiApiKey: '123',
-  aiModel: 'gpt-3.5-turbo',
-  customSystemPrompt: '你是一个可爱的虚拟助手，请用简短、生动、带有一点二次元风格的语言回答我的问题。',
-  userName: '我',             
-  aiName: '对象',             
-  characterList: [],          
-  ttsEnabled: false,
-  ttsUrlTemplate: 'http://127.0.0.1:9880/tts?text={text}&text_lang={lang}&ref_audio_path={ref_audio}&prompt_text={ref_text}&prompt_lang={ref_lang}',
-  ttsLanguage: 'zh',
-  ttsVolume: 1.0,             
-  bgmVolume: 0.3,             
-  bgmMode: 'sequential',      
-  enableBgmToast: false,      
-  live2dScale: 0.2, 
-  live2dX: 0,
-  live2dY: 0,
-  titleLive2dScale: 0.2,
-  titleLive2dX: 0,
-  titleLive2dY: 0,
-  corsProxyType: 'none', 
-  customCorsProxyUrl: 'https://corsproxy.io/?',
-  enablePlotOptions: false,   
-  enableStreaming: true,      
-  typingSpeed: 40,            
-  vnLinesPerPage: 4,          
-  dialogOpacity: 0.6,
-  settingsOpacity: 0.95,
-  currentBgId: null,
-  currentBgmId: null,         
-  currentExpressionId: null,
-  currentModelId: null,       
-  dialogFontFamily: '"Microsoft YaHei", sans-serif',
-  dialogTextColor: '#ffffff',
-  dialogThemeColor: '#000000',
-  dialogPositionY: 0,
-  enableClickExpression: true,
-  enableNoLive2DMode: false,
-  hideLive2dModel: false,     
-  mainTitleText: 'GWC',
-  mainTitleColor: '#e0f2fe',
-  mainTitleFont: 'serif',
-  mainTitleX: 0,
-  mainTitleY: 0,
-  subTitleText: '- GalGame Web Chat -',
-  subTitleColor: '#dbeafe',
-  subTitleFont: 'sans-serif',
-  subTitleX: 0,
-  subTitleY: 0,
-  plotApiMode: 'shared',      
-  plotBaseUrl: '',
-  plotApiKey: '',
-  plotModel: 'gpt-3.5-turbo',
-  hideTitleLive2d: false,
-  ttsRefAudio: '',
-  ttsRefText: '',
-  ttsRefLang: 'zh',
-  enableTranslation: false,
-  displayLanguage: 'zh',
-  ttsSentencePause: 0,
-  ttsPlaybackRate: 1.0,
-  workMode: false,
-  modelConfigs: {},
-  enableMemory: false,
-  memoryInterval: 150,
-  enableAutoSave: false,
-  autoSaveInterval: 5,
-  enableProactiveChat: false,
-  proactiveMinInterval: 3,
-  proactiveMaxInterval: 10,
-  enableFaceTracking: false,
-  enableCameraPreview: false,
-  // ✨ 新增：自定义快捷栏显隐控制
-  shortcuts: {
-    save: true, load: true, quickSave: true, quickLoad: true, skip: true,
-    bg: true, model: true, expression: true, memo: true, workMode: true,
-    faceTracking: true, hideModel: true, bgm: true, plot: true, tts: true, log: true
-  }
+// ✨ 数据库初始化逻辑：强制版本 10
+const DB_NAME = 'Live2D_Local_Storage';
+const REQUIRED_STORES = ['core_data', 'model_files', 'app_settings', 'bgm_files', 'bg_images', 'live2d_models', 'app_mods'];
+
+const coreDBPromise = new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, 10); 
+    request.onupgradeneeded = (e) => {
+        const db = e.target.result;
+        console.log("[DB] 正在物理检测并补齐缺失的数据表...");
+        REQUIRED_STORES.forEach(store => {
+            if (!db.objectStoreNames.contains(store)) {
+                if (['bgm_files', 'bg_images', 'live2d_models', 'app_mods'].includes(store)) {
+                    db.createObjectStore(store, { keyPath: 'id' });
+                } else {
+                    db.createObjectStore(store);
+                }
+            }
+        });
+    };
+    request.onsuccess = (e) => resolve(e.target.result);
+    request.onerror = (e) => reject(e.target.error);
+});
+
+const initDB = () => coreDBPromise;
+const getActiveMirrorId = () => localStorage.getItem('GWC_MIRROR_SYS_ACTIVE_ID') || 'mirror_default';
+
+const saveCoreData = async (key, data) => { try { const db = await coreDBPromise; const tx = db.transaction('core_data', 'readwrite'); const realKey = `${getActiveMirrorId()}_${key}`; tx.objectStore('core_data').put(data, realKey); } catch(e) { console.error("IDB写入失败", e); } };
+const loadCoreData = async (key) => { try { const db = await coreDBPromise; return new Promise(resolve => { const tx = db.transaction('core_data', 'readonly'); const realKey = `${getActiveMirrorId()}_${key}`; const req = tx.objectStore('core_data').get(realKey); req.onsuccess = () => resolve(req.result); req.onerror = () => resolve(null); }); } catch(e) { return null; } };
+
+// --- 数据库常量定义 ---
+const STORE_NAME = 'model_files'; 
+const SETTINGS_STORE = 'app_settings';
+const BGM_STORE = 'bgm_files'; 
+const BG_STORE = 'bg_images'; 
+const MODELS_STORE = 'live2d_models'; 
+const MODS_STORE = 'app_mods';
+
+const filterByMirror = (result) => {
+    const mirrorId = getActiveMirrorId();
+    if (!result || !Array.isArray(result)) return [];
+    return result.filter(item => {
+        if (!item || item.id === undefined) return false;
+        const idStr = String(item.id);
+        if (mirrorId === 'mirror_default') {
+            return !idStr.startsWith('mirror_') || idStr.startsWith('mirror_default_');
+        }
+        return idStr.startsWith(`${mirrorId}_`);
+    });
 };
 
-// --- 快捷栏定义 ---
+const saveMultiModelToDB = async (modelItem) => { const db = await initDB(); return new Promise((resolve, reject) => { const tx = db.transaction(MODELS_STORE, 'readwrite'); tx.objectStore(MODELS_STORE).put(modelItem); tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error); }); };
+const loadModelsListFromDB = async () => { const db = await initDB(); return new Promise((resolve, reject) => { const tx = db.transaction(MODELS_STORE, 'readonly'); const request = tx.objectStore(MODELS_STORE).getAll(); request.onsuccess = (e) => { const list = filterByMirror(e.target.result).map(item => ({ id: item.id, name: item.name })); resolve(list); }; request.onerror = () => reject(request.error); }); };
+const getMultiModelFromDB = async (id) => { const db = await initDB(); return new Promise((resolve, reject) => { const tx = db.transaction(MODELS_STORE, 'readonly'); const request = tx.objectStore(MODELS_STORE).get(id); request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); }); };
+const deleteMultiModelFromDB = async (id) => { const db = await initDB(); return new Promise((resolve, reject) => { const tx = db.transaction(MODELS_STORE, 'readwrite'); tx.objectStore(MODELS_STORE).delete(id); tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error); }); };
+const loadModelFilesFromDB = async () => { const db = await initDB(); return new Promise((resolve, reject) => { const tx = db.transaction(STORE_NAME, 'readonly'); const store = tx.objectStore(STORE_NAME); const request = store.getAll(); const keysRequest = store.getAllKeys(); request.onsuccess = () => { keysRequest.onsuccess = () => { if (!request.result || request.result.length === 0) return resolve(null); const files = request.result.map((file, index) => { Object.defineProperty(file, 'webkitRelativePath', { value: keysRequest.result[index], writable: false }); return file; }); resolve(files); }; }; request.onerror = () => reject(request.error); }); };
+const saveBGMToDB = async (bgmItem) => { const db = await initDB(); return new Promise((resolve, reject) => { const tx = db.transaction(BGM_STORE, 'readwrite'); tx.objectStore(BGM_STORE).put(bgmItem); tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error); }); };
+const loadBGMFromDB = async () => { const db = await initDB(); return new Promise((resolve, reject) => { const tx = db.transaction(BGM_STORE, 'readonly'); const request = tx.objectStore(BGM_STORE).getAll(); request.onsuccess = () => resolve(filterByMirror(request.result)); request.onerror = () => reject(request.error); }); };
+const deleteBGMFromDB = async (id) => { const db = await initDB(); return new Promise((resolve, reject) => { const tx = db.transaction(BGM_STORE, 'readwrite'); tx.objectStore(BGM_STORE).delete(id); tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error); }); };
+const saveImageToDB = async (key, dataUrl) => { const db = await initDB(); return new Promise((resolve, reject) => { const tx = db.transaction(SETTINGS_STORE, 'readwrite'); const store = tx.objectStore(SETTINGS_STORE); const realKey = `${getActiveMirrorId()}_${key}`; if (dataUrl) store.put(dataUrl, realKey); else store.delete(realKey); tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error); }); };
+const loadImageFromDB = async (key) => { const db = await initDB(); return new Promise((resolve, reject) => { const tx = db.transaction(SETTINGS_STORE, 'readonly'); const realKey = `${getActiveMirrorId()}_${key}`; const request = tx.objectStore(SETTINGS_STORE).get(realKey); request.onsuccess = () => { if (request.result) resolve(request.result); else if (getActiveMirrorId() === 'mirror_default') { const fb = tx.objectStore(SETTINGS_STORE).get(key); fb.onsuccess = () => resolve(fb.result); fb.onerror = () => resolve(null); } else resolve(null); }; request.onerror = () => reject(request.error); }); };
+const saveBgItemToDB = async (bgItem) => { const db = await initDB(); return new Promise((resolve, reject) => { const tx = db.transaction(BG_STORE, 'readwrite'); tx.objectStore(BG_STORE).put(bgItem); tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error); }); };
+const loadBgListFromDB = async () => { const db = await initDB(); return new Promise((resolve, reject) => { const tx = db.transaction(BG_STORE, 'readonly'); const request = tx.objectStore(BG_STORE).getAll(); request.onsuccess = () => resolve(filterByMirror(request.result)); request.onerror = () => reject(request.error); }); };
+const deleteBgItemFromDB = async (id) => { const db = await initDB(); return new Promise((resolve, reject) => { const tx = db.transaction(BG_STORE, 'readwrite'); tx.objectStore(BG_STORE).delete(id); tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error); }); };
+const saveModToDB = async (modItem) => { const db = await initDB(); return new Promise((resolve, reject) => { const tx = db.transaction(MODS_STORE, 'readwrite'); tx.objectStore(MODS_STORE).put(modItem); tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error); }); };
+const loadModsFromDB = async () => { const db = await initDB(); return new Promise((resolve, reject) => { const tx = db.transaction(MODS_STORE, 'readonly'); const request = tx.objectStore(MODS_STORE).getAll(); request.onsuccess = () => resolve(request.result); request.onerror = () => resolve(request.error); }); };
+const deleteModFromDB = async (id) => { const db = await initDB(); return new Promise((resolve, reject) => { const tx = db.transaction(MODS_STORE, 'readwrite'); tx.objectStore(MODS_STORE).delete(id); tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error); }); };
+
+const blobToBase64 = (blob) => new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = error => reject(error); reader.readAsDataURL(blob); });
+
+// --- 默认设置 ---
+const DEFAULT_SETTINGS = {
+  openaiBaseUrl: '', openaiApiKey: '123', aiModel: 'gpt-3.5-turbo',
+  customSystemPrompt: '你是一个可爱的虚拟助手，请用简短、生动、带有一点二次元风格的语言回答我的问题。',
+  userName: '我', aiName: '对象', characterList: [], ttsEnabled: false,
+  ttsUrlTemplate: 'http://127.0.0.1:9880/tts?text={text}&text_lang={lang}&ref_audio_path={ref_audio}&prompt_text={ref_text}&prompt_lang={ref_lang}',
+  ttsLanguage: 'zh', ttsVolume: 1.0, bgmVolume: 0.3, bgmMode: 'sequential', enableBgmToast: false,
+  // ✨ 新增手机端模式开关状态
+  ttsMobileMode: false,
+  live2dScale: 0.2, live2dX: 0, live2dY: 0, titleLive2dScale: 0.2, titleLive2dX: 0, titleLive2dY: 0,
+  corsProxyType: 'none', customCorsProxyUrl: 'https://corsproxy.io/?', enablePlotOptions: false, enableStreaming: true, typingSpeed: 40, vnLinesPerPage: 4, dialogOpacity: 0.6, settingsOpacity: 0.95, currentBgId: null, currentBgmId: null, currentExpressionId: null, currentModelId: null,
+  dialogFontFamily: '"Microsoft YaHei", sans-serif', dialogTextColor: '#ffffff', dialogThemeColor: '#000000', dialogPositionY: 0, dialogLineHeight: 1.8,
+  enableClickExpression: true, enableNoLive2DMode: false, mainTitleText: 'GWC', mainTitleColor: '#e0f2fe', mainTitleFont: 'serif', mainTitleX: 0, mainTitleY: 0, subTitleText: '- GalGame Web Chat -', subTitleColor: '#dbeafe', subTitleFont: 'sans-serif', subTitleX: 0, subTitleY: 0, titleBgOffsetX: 0, titleBgOffsetY: 0, plotApiMode: 'shared', plotBaseUrl: '', plotApiKey: '', plotModel: 'gpt-3.5-turbo', hideTitleLive2d: false, ttsRefAudio: '', ttsRefText: '', ttsRefLang: 'zh', enableTranslation: false, displayLanguage: 'zh', ttsSentencePause: 0, ttsPlaybackRate: 1.0, workMode: false, modelConfigs: {}, enableMemory: false, memoryInterval: 150, enableAutoSave: false, autoSaveInterval: 5, enableProactiveChat: false, proactiveMinInterval: 3, proactiveMaxInterval: 10, enableFaceTracking: false, enableCameraPreview: false, faceTrackingMode: 'full', ttsFastMode: true, showTitleBgmPlayer: true,
+  shortcuts: { save: true, load: true, quickSave: true, quickLoad: true, skip: true, bg: true, model: true, expression: true, memo: true, workMode: true, faceTracking: true, hideModel: true, bgm: true, plot: true, tts: true, log: true }
+};
+
 const SHORTCUT_DEFS = [
   { id: 'save', label: '保存 (S)' }, { id: 'load', label: '读取 (L)' },
   { id: 'quickSave', label: '快存 (QS)' }, { id: 'quickLoad', label: '快读 (QL)' },
@@ -112,206 +127,12 @@ const SHORTCUT_DEFS = [
   { id: 'tts', label: 'Auto(TTS)' }, { id: 'log', label: 'Log 记录' }
 ];
 
-// --- 十六进制颜色转 RGBA 工具 ---
 const hexToRgba = (hex, alpha) => {
   let r = 0, g = 0, b = 0;
-  if (hex && hex.length === 4) {
-    r = parseInt(hex[1] + hex[1], 16);
-    g = parseInt(hex[2] + hex[2], 16);
-    b = parseInt(hex[3] + hex[3], 16);
-  } else if (hex && hex.length === 7) {
-    r = parseInt(hex.substring(1, 3), 16);
-    g = parseInt(hex.substring(3, 5), 16);
-    b = parseInt(hex.substring(5, 7), 16);
-  }
+  if (hex && hex.length === 4) { r = parseInt(hex[1] + hex[1], 16); g = parseInt(hex[2] + hex[2], 16); b = parseInt(hex[3] + hex[3], 16); }
+  else if (hex && hex.length === 7) { r = parseInt(hex.substring(1, 3), 16); g = parseInt(hex.substring(3, 5), 16); b = parseInt(hex.substring(5, 7), 16); }
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
-
-// --- IndexedDB 封装 ---
-const DB_NAME = 'Live2D_Local_Storage';
-const STORE_NAME = 'model_files'; 
-const SETTINGS_STORE = 'app_settings';
-const BGM_STORE = 'bgm_files'; 
-const BG_STORE = 'bg_images'; 
-const MODELS_STORE = 'live2d_models'; 
-
-const initDB = () => {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 5); 
-    request.onupgradeneeded = (e) => {
-      const db = e.target.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) db.createObjectStore(STORE_NAME);
-      if (!db.objectStoreNames.contains(SETTINGS_STORE)) db.createObjectStore(SETTINGS_STORE);
-      if (!db.objectStoreNames.contains(BGM_STORE)) db.createObjectStore(BGM_STORE, { keyPath: 'id' });
-      if (!db.objectStoreNames.contains(BG_STORE)) db.createObjectStore(BG_STORE, { keyPath: 'id' }); 
-      if (!db.objectStoreNames.contains(MODELS_STORE)) db.createObjectStore(MODELS_STORE, { keyPath: 'id' }); 
-    };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
-};
-
-const saveMultiModelToDB = async (modelItem) => {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(MODELS_STORE, 'readwrite');
-    tx.objectStore(MODELS_STORE).put(modelItem);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
-};
-
-const loadModelsListFromDB = async () => {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(MODELS_STORE, 'readonly');
-    const store = tx.objectStore(MODELS_STORE);
-    const request = store.openCursor();
-    const list = [];
-    request.onsuccess = (e) => {
-      const cursor = e.target.result;
-      if (cursor) {
-        list.push({ id: cursor.value.id, name: cursor.value.name });
-        cursor.continue();
-      } else {
-        resolve(list);
-      }
-    };
-    request.onerror = () => reject(request.error);
-  });
-};
-
-const getMultiModelFromDB = async (id) => {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(MODELS_STORE, 'readonly');
-    const request = tx.objectStore(MODELS_STORE).get(id);
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
-};
-
-const deleteMultiModelFromDB = async (id) => {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(MODELS_STORE, 'readwrite');
-    tx.objectStore(MODELS_STORE).delete(id);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
-};
-
-const loadModelFilesFromDB = async () => {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readonly');
-    const store = tx.objectStore(STORE_NAME);
-    const request = store.getAll();
-    const keysRequest = store.getAllKeys();
-    request.onsuccess = () => {
-      keysRequest.onsuccess = () => {
-        if (!request.result || request.result.length === 0) return resolve(null);
-        const files = request.result.map((file, index) => {
-          const path = keysRequest.result[index];
-          Object.defineProperty(file, 'webkitRelativePath', { value: path, writable: false });
-          return file;
-        });
-        resolve(files);
-      };
-    };
-    request.onerror = () => reject(request.error);
-  });
-};
-
-const saveBGMToDB = async (bgmItem) => {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(BGM_STORE, 'readwrite');
-    tx.objectStore(BGM_STORE).put(bgmItem);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
-};
-
-const loadBGMFromDB = async () => {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(BGM_STORE, 'readonly');
-    const request = tx.objectStore(BGM_STORE).getAll();
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
-};
-
-const deleteBGMFromDB = async (id) => {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(BGM_STORE, 'readwrite');
-    tx.objectStore(BGM_STORE).delete(id);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
-};
-
-const saveImageToDB = async (key, dataUrl) => {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(SETTINGS_STORE, 'readwrite');
-    const store = tx.objectStore(SETTINGS_STORE);
-    if (dataUrl) store.put(dataUrl, key);
-    else store.delete(key);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
-};
-
-const loadImageFromDB = async (key) => {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(SETTINGS_STORE, 'readonly');
-    const store = tx.objectStore(SETTINGS_STORE);
-    const request = store.get(key);
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
-};
-
-const saveBgItemToDB = async (bgItem) => {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(BG_STORE, 'readwrite');
-    tx.objectStore(BG_STORE).put(bgItem);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
-};
-
-const loadBgListFromDB = async () => {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(BG_STORE, 'readonly');
-    const request = tx.objectStore(BG_STORE).getAll();
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
-};
-
-const deleteBgItemFromDB = async (id) => {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(BG_STORE, 'readwrite');
-    tx.objectStore(BG_STORE).delete(id);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
-};
-
-const blobToBase64 = (blob) => new Promise((resolve, reject) => {
-  const reader = new FileReader();
-  reader.onload = () => resolve(reader.result);
-  reader.onerror = error => reject(error);
-  reader.readAsDataURL(blob);
-});
 
 const SettingToggle = ({ label, value, onChange }) => (
   <div className="flex flex-col gap-2">
@@ -325,104 +146,104 @@ const SettingToggle = ({ label, value, onChange }) => (
 
 const SettingSlider = ({ label, value, min, max, step, suffix = '', onChange }) => (
   <div className="flex flex-col gap-2 w-full">
-    <label className="text-[#ba3f42] font-bold flex items-center gap-1"><span className="text-sm">✱</span> {label}</label>
-    <div className="flex items-center gap-4">
-      <input type="range" min={min} max={max} step={step} value={value} onChange={e => onChange(parseFloat(e.target.value))} className="flex-1 accent-[#ba3f42] h-2 bg-[#e8decb] rounded-full appearance-none outline-none" />
-      <span className="bg-white px-3 py-1 rounded-full text-sm font-bold text-[#7a6b5d] border border-[#e8decb] min-w-[60px] text-center shadow-sm">{value}{suffix}</span>
+    <div className="flex justify-between text-[#ba3f42] font-bold">
+      <label className="flex items-center gap-1"><span className="text-sm">✱</span> {label}</label>
+      <span className="text-[#4a4036] bg-[#e8decb] px-2 py-0.5 rounded text-sm">{value}{suffix}</span>
     </div>
+    <input type="range" min={min} max={max} step={step} value={value} onChange={e => onChange(parseFloat(e.target.value))} className="w-full h-2 bg-[#d9c5b2] rounded-lg appearance-none cursor-pointer accent-[#ba3f42]" />
   </div>
 );
 
 const SettingSectionTitle = ({ title, extra }) => (
-  <div className="flex items-center gap-4 mb-6">
+  <div className="flex flex-wrap items-center gap-4 mb-6">
     <h3 className="text-lg font-black text-[#ba3f42] tracking-widest whitespace-nowrap">{title}</h3>
-    <div className="flex-1 border-b-2 border-dashed border-[#e6d5b8]"></div>
-    {extra && <div className="shrink-0">{extra}</div>}
+    <div className="hidden sm:block flex-1 border-b-2 border-dashed border-[#e6d5b8] min-w-[20px]"></div>
+    {extra && <div className="shrink-0 flex items-center gap-2">{extra}</div>}
   </div>
 );
 
+const TypewriterPreview = ({ speed, text, textStyle }) => {
+  const [displayed, setDisplayed] = useState('');
+  useEffect(() => {
+    setDisplayed(''); let i = 0;
+    const timer = setInterval(() => { setDisplayed(text.slice(0, i + 1)); i++; if (i >= text.length) clearInterval(timer); }, speed);
+    return () => clearInterval(timer);
+  }, [speed, text]);
+  return (
+    <div style={textStyle} className="whitespace-pre-wrap flex-1 break-words">
+      {displayed}<span className="inline-block w-2.5 h-5 ml-1 bg-white/70 animate-pulse align-middle rounded-sm"></span>
+    </div>
+  );
+};
+
+
 export default function App() {
-  
   const [appMode, setAppMode] = useState('title');
   const [localTitleBgImage, setLocalTitleBgImage] = useState('');
 
-  const [settings, setSettings] = useState(() => {
-    const saved = localStorage.getItem('live2d_settings_v34') || localStorage.getItem('live2d_settings_v33') || localStorage.getItem('live2d_settings_v32');
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (parsed.currentModelId === undefined) parsed.currentModelId = null;
-      if (parsed.hideLive2dModel === undefined) parsed.hideLive2dModel = false;
-      if (parsed.ttsRefAudio === undefined) parsed.ttsRefAudio = DEFAULT_SETTINGS.ttsRefAudio;
-      if (parsed.ttsRefText === undefined) parsed.ttsRefText = DEFAULT_SETTINGS.ttsRefText;
-      if (parsed.ttsRefLang === undefined) parsed.ttsRefLang = DEFAULT_SETTINGS.ttsRefLang;
-      if (parsed.enableTranslation === undefined) parsed.enableTranslation = DEFAULT_SETTINGS.enableTranslation;
-      if (parsed.displayLanguage === undefined) parsed.displayLanguage = DEFAULT_SETTINGS.displayLanguage;
-      if (parsed.ttsSentencePause === undefined) parsed.ttsSentencePause = DEFAULT_SETTINGS.ttsSentencePause;
-      if (parsed.ttsPlaybackRate === undefined) parsed.ttsPlaybackRate = DEFAULT_SETTINGS.ttsPlaybackRate;
-      if (parsed.workMode === undefined) parsed.workMode = DEFAULT_SETTINGS.workMode;
-      if (parsed.modelConfigs === undefined) parsed.modelConfigs = {};
-      if (parsed.enableMemory === undefined) parsed.enableMemory = DEFAULT_SETTINGS.enableMemory;
-      if (parsed.memoryInterval === undefined) parsed.memoryInterval = DEFAULT_SETTINGS.memoryInterval;
-      if (parsed.enableAutoSave === undefined) parsed.enableAutoSave = DEFAULT_SETTINGS.enableAutoSave;
-      if (parsed.autoSaveInterval === undefined) parsed.autoSaveInterval = DEFAULT_SETTINGS.autoSaveInterval;
-      
-      if (parsed.enableProactiveChat === undefined) parsed.enableProactiveChat = DEFAULT_SETTINGS.enableProactiveChat;
-      if (parsed.proactiveMinInterval === undefined) parsed.proactiveMinInterval = DEFAULT_SETTINGS.proactiveMinInterval;
-      if (parsed.proactiveMaxInterval === undefined) parsed.proactiveMaxInterval = DEFAULT_SETTINGS.proactiveMaxInterval;
+  // ✨ 核心大迁徙：加入数据库唤醒锁与空壳状态
+  const [isCoreLoading, setIsCoreLoading] = useState(true);
+  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  const [memos, setMemos] = useState([]);
+  const [sessions, setSessions] = useState([]);
+  const [activeSessionId, setActiveSessionId] = useState(null);
+  const [saveSlots, setSaveSlots] = useState({});
+  const [quickSaveData, setQuickSaveData] = useState(null);
+  const [autoSaveData, setAutoSaveData] = useState(null);
 
-      // ✨ 注入面捕及快捷栏属性
-      if (parsed.enableFaceTracking === undefined) parsed.enableFaceTracking = DEFAULT_SETTINGS.enableFaceTracking;
-      if (parsed.enableCameraPreview === undefined) parsed.enableCameraPreview = DEFAULT_SETTINGS.enableCameraPreview;
-      if (!parsed.shortcuts) parsed.shortcuts = DEFAULT_SETTINGS.shortcuts;
-      else parsed.shortcuts = { ...DEFAULT_SETTINGS.shortcuts, ...parsed.shortcuts };
+  // ✨ 异步潜入 IndexedDB 黑盒捞取数据
+  useEffect(() => {
+    const loadEverything = async () => {
+      try {
+        let savedSettings = await loadCoreData('live2d_settings_v35');
+        let savedSessions = await loadCoreData('live2d_sessions_v35');
+        let savedSlots = await loadCoreData('live2d_saves_v35');
+        let savedQS = await loadCoreData('live2d_quicksave_v35');
+        let savedAS = await loadCoreData('live2d_autosave_v35');
+        let savedMemos = await loadCoreData('live2d_memos_v35');
 
-      if (parsed.ttsUrlTemplate && parsed.ttsUrlTemplate.includes('text_language')) {
-        parsed.ttsUrlTemplate = parsed.ttsUrlTemplate.replace('text_language=', 'text_lang=').replace('prompt_language=', 'prompt_lang=');
-      }
-      return { ...DEFAULT_SETTINGS, ...parsed };
-    }
-    return DEFAULT_SETTINGS;
-  });
+        // ✨ 阻断污染：仅当处于默认主系统时，才允许从旧版 LocalStorage 继承进度数据
+        const isDefaultMirror = getActiveMirrorId() === 'mirror_default';
 
-  const [memos, setMemos] = useState(() => {
-    const saved = localStorage.getItem('live2d_memos_v34') || localStorage.getItem('live2d_memos_v33');
-    return saved ? JSON.parse(saved) : [];
-  });
-  
+        if (!savedSettings) { const o = localStorage.getItem('live2d_settings_v34') || localStorage.getItem('live2d_settings_v33'); if(o) savedSettings = JSON.parse(o); }
+        if (!savedSessions && isDefaultMirror) { const o = localStorage.getItem('live2d_sessions_v34'); if(o) savedSessions = JSON.parse(o); }
+        if (!savedSlots && isDefaultMirror) { const o = localStorage.getItem('live2d_saves_v34'); if(o) savedSlots = JSON.parse(o); }
+        if (!savedQS && isDefaultMirror) { const o = localStorage.getItem('live2d_quicksave_v34'); if(o) savedQS = JSON.parse(o); }
+        if (!savedAS && isDefaultMirror) { const o = localStorage.getItem('live2d_autosave_v34'); if(o) savedAS = JSON.parse(o); }
+        if (!savedMemos && isDefaultMirror) { const o = localStorage.getItem('live2d_memos_v34'); if(o) savedMemos = JSON.parse(o); }
+
+        if (savedSettings) {
+            if (savedSettings.currentModelId === undefined) savedSettings.currentModelId = null;
+            if (savedSettings.dialogLineHeight === undefined) savedSettings.dialogLineHeight = 1.8;
+            setSettings({ ...DEFAULT_SETTINGS, ...savedSettings });
+        }
+        if (savedSessions && savedSessions.length > 0) { setSessions(savedSessions); setActiveSessionId(savedSessions[0].id); } 
+        else { const newS = { id: Date.now().toString(), title: '新剧情', messages: [], memorySummary: '' }; setSessions([newS]); setActiveSessionId(newS.id); }
+        if (savedSlots) setSaveSlots(savedSlots);
+        if (savedQS) setQuickSaveData(savedQS);
+        if (savedAS) setAutoSaveData(savedAS);
+        if (savedMemos) setMemos(savedMemos);
+      } catch(e) { console.error("唤醒失败", e); } finally { setIsCoreLoading(false); }
+    };
+    loadEverything();
+  }, []);
+
+  // ✨ 数据变动实时写入黑盒
+  useEffect(() => { if (!isCoreLoading) saveCoreData('live2d_settings_v35', settings); }, [settings, isCoreLoading]);
+  useEffect(() => { if (!isCoreLoading) saveCoreData('live2d_sessions_v35', sessions); }, [sessions, isCoreLoading]);
+  useEffect(() => { if (!isCoreLoading) saveCoreData('live2d_saves_v35', saveSlots); }, [saveSlots, isCoreLoading]);
+  useEffect(() => { if (!isCoreLoading) saveCoreData('live2d_quicksave_v35', quickSaveData); }, [quickSaveData, isCoreLoading]);
+  useEffect(() => { if (!isCoreLoading) saveCoreData('live2d_autosave_v35', autoSaveData); }, [autoSaveData, isCoreLoading]);
+  useEffect(() => { if (!isCoreLoading) saveCoreData('live2d_memos_v35', memos); }, [memos, isCoreLoading]);
   const [isMemoOpen, setIsMemoOpen] = useState(false);
   const [newMemoText, setNewMemoText] = useState('');
   const [newMemoDate, setNewMemoDate] = useState('');
-
-  const [sessions, setSessions] = useState(() => {
-    const saved = localStorage.getItem('live2d_sessions_v34') || localStorage.getItem('live2d_sessions_v33');
-    return saved ? JSON.parse(saved) : [{ id: Date.now().toString(), title: '新剧情', messages: [], memorySummary: '' }];
-  });
-
-  const [activeSessionId, setActiveSessionId] = useState(() => {
-    const saved = localStorage.getItem('live2d_active_session_v34') || localStorage.getItem('live2d_active_session_v33');
-    return saved || null;
-  });
-
-  const [saveSlots, setSaveSlots] = useState(() => {
-    const saved = localStorage.getItem('live2d_saves_v34') || localStorage.getItem('live2d_saves_v33');
-    return saved ? JSON.parse(saved) : {};
-  });
-
-  const [quickSaveData, setQuickSaveData] = useState(() => {
-    const saved = localStorage.getItem('live2d_quicksave_v34') || localStorage.getItem('live2d_quicksave_v33');
-    return saved ? JSON.parse(saved) : null;
-  });
-
-  const [autoSaveData, setAutoSaveData] = useState(() => {
-    const saved = localStorage.getItem('live2d_autosave_v34') || localStorage.getItem('live2d_autosave_v33');
-    return saved ? JSON.parse(saved) : null;
-  });
-
   const [inputValue, setInputValue] = useState('');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState('visual'); 
   const [isLogOpen, setIsLogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const isLoadingRef = useRef(false); // ✨ 新增：底层并发锁，防止重复触发请求导致闪烁
   const [isCompressingMemory, setIsCompressingMemory] = useState(false); 
   
   const [selectedImage, setSelectedImage] = useState(null);
@@ -430,6 +251,12 @@ export default function App() {
   const [availableModels, setAvailableModels] = useState(['gpt-3.5-turbo', 'gpt-4o', 'gemini-pro', 'claude-3-opus']);
   const [live2dStatus, setLive2dStatus] = useState('初始化中...');
   const [modelReloadTrigger, setModelReloadTrigger] = useState(0);
+// ✨ 核心大迁徙修复：当底层数据库(IDB)把设置唤醒完毕后，强制“踢”一脚触发模型重载！
+  useEffect(() => {
+    if (!isCoreLoading) {
+      setModelReloadTrigger(prev => prev + 1);
+    }
+  }, [isCoreLoading]);
 
   const [suggestedReplies, setSuggestedReplies] = useState([]);
   const [isGeneratingReplies, setIsGeneratingReplies] = useState(false);
@@ -465,6 +292,22 @@ export default function App() {
 
   const [visualAdjustMode, setVisualAdjustMode] = useState(null);
 
+  // ✨ 插件列表状态
+  const [modsList, setModsList] = useState([]);
+
+  // ✨ 新增：环境探针状态，用于实时静默检测【平行镜像分身】插件是否已激活
+  const [isMirrorPluginLoaded, setIsMirrorPluginLoaded] = useState(false);
+  useEffect(() => {
+    const checkInterval = setInterval(() => {
+        // 检测 window 顶层对象中是否存在插件的专属挂载徽标
+        const isLoaded = !!window.__ImageMirrorLoaded;
+        if (isLoaded !== isMirrorPluginLoaded) {
+            setIsMirrorPluginLoaded(isLoaded);
+        }
+    }, 1000);
+    return () => clearInterval(checkInterval);
+  }, [isMirrorPluginLoaded]);
+
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const appRef = useRef(null);
@@ -477,11 +320,133 @@ export default function App() {
   const bgmToastTimeoutRef = useRef(null); 
   const editInputRef = useRef(null); 
   const fileInputRef = useRef(null); 
-  
   const wheelTimeoutRef = useRef(null);
+  
+  // 维护给全局插件的 API
+  const gwcApiRef = useRef({});
+
+  const showToast = useCallback((message, type = 'info', duration = 4000) => {
+    setToast({ visible: true, message, type });
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    toastTimeoutRef.current = setTimeout(() => { setToast(prev => ({ ...prev, visible: false })); }, duration); 
+  }, []);
+
+  // ✨ GWC Plugin Core API 挂载
+  useEffect(() => {
+    gwcApiRef.current = {
+        version: '3.14.159',
+        getSettings: () => settings,
+        updateSettings: (newSettings) => setSettings(s => ({...s, ...newSettings})),
+        getSessions: () => sessions,
+        updateSessions: setSessions,
+        getActiveSessionId: () => activeSessionId,
+        showToast,
+        triggerSendMessage: (text, hidden) => {
+            // 通过事件触发发送消息逻辑
+            window.dispatchEvent(new CustomEvent('plugin-send-msg', { detail: { text, hidden } }));
+        },
+        on: (eventName, callback) => window.addEventListener(eventName, callback),
+        off: (eventName, callback) => window.removeEventListener(eventName, callback)
+    };
+    window.$GWC = gwcApiRef.current;
+  }, [settings, sessions, activeSessionId, showToast]);
+
+  // ✨ 初始化 Mod 插件
+  useEffect(() => {
+    const initMods = async () => {
+        try {
+            const list = await loadModsFromDB() || [];
+            setModsList(list);
+            list.forEach(mod => {
+                if (mod.enabled) {
+                    try {
+                        const script = document.createElement('script');
+                        script.textContent = `(function() { try { ${mod.code} } catch(e) { console.error('Mod Error [${mod.name}]:', e); } })();`;
+                        document.head.appendChild(script);
+                        console.log(`[Plugin] Mod Loaded: ${mod.name}`);
+                    } catch (e) { console.error(`Mod Execution Error [${mod.name}]:`, e); }
+                }
+            });
+        } catch (e) {
+            console.error("加载插件失败:", e);
+        }
+    };
+    initMods();
+  }, []);
+
+  const handleNextBgm = useCallback(() => {
+    if (bgmList.length === 0) return;
+    let next = (currentBgmIndex + 1) % bgmList.length;
+    if (settings.bgmMode === 'random') {
+        if (bgmList.length > 1) {
+            next = Math.floor(Math.random() * bgmList.length);
+            if (next === currentBgmIndex) next = (next + 1) % bgmList.length;
+        } else { next = 0; }
+    }
+    setCurrentBgmIndex(next);
+    if (!isBgmPlaying) setIsBgmPlaying(true);
+  }, [bgmList, currentBgmIndex, settings.bgmMode, isBgmPlaying]);
+
+  const handlePrevBgm = useCallback(() => {
+    if (bgmList.length === 0) return;
+    let prev = (currentBgmIndex - 1 + bgmList.length) % bgmList.length;
+    setCurrentBgmIndex(prev);
+    if (!isBgmPlaying) setIsBgmPlaying(true);
+  }, [bgmList, currentBgmIndex, isBgmPlaying]);
+
+  const toggleBgmMode = useCallback(() => {
+    const modes = ['sequential', 'random', 'loop'];
+    const nextMode = modes[(modes.indexOf(settings.bgmMode) + 1) % modes.length];
+    setSettings(s => ({ ...s, bgmMode: nextMode }));
+  }, [settings.bgmMode]);
+
+  const [bgmOffset, setBgmOffset] = useState({ x: 0, y: 0 });
+  const isDraggingBgm = useRef(false);
+  const dragStart = useRef({ x: 0, y: 0 });
+  const offsetStart = useRef({ x: 0, y: 0 });
+
+  const handleBgmPointerDown = (e) => {
+    isDraggingBgm.current = true;
+    dragStart.current = { x: e.clientX ?? e.touches[0].clientX, y: e.clientY ?? e.touches[0].clientY };
+    offsetStart.current = { ...bgmOffset };
+  };
+
+  const handleBgmPointerMove = useCallback((e) => {
+    if (!isDraggingBgm.current) return;
+    const clientX = e.clientX ?? e.touches[0].clientX;
+    const clientY = e.clientY ?? e.touches[0].clientY;
+    const dx = clientX - dragStart.current.x;
+    const dy = clientY - dragStart.current.y;
+    setBgmOffset({ x: offsetStart.current.x + dx, y: offsetStart.current.y + dy });
+  }, []);
+
+  const handleBgmPointerUp = useCallback(() => {
+    isDraggingBgm.current = false;
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener('mousemove', handleBgmPointerMove);
+    window.addEventListener('mouseup', handleBgmPointerUp);
+    window.addEventListener('touchmove', handleBgmPointerMove, { passive: false });
+    window.addEventListener('touchend', handleBgmPointerUp);
+    return () => {
+        window.removeEventListener('mousemove', handleBgmPointerMove);
+        window.removeEventListener('mouseup', handleBgmPointerUp);
+        window.removeEventListener('touchmove', handleBgmPointerMove);
+        window.removeEventListener('touchend', handleBgmPointerUp);
+    };
+  }, [handleBgmPointerMove, handleBgmPointerUp]);
+
+  const ttsTaskQueueRef = useRef([]);
   const ttsTimeoutRef = useRef(null); 
-  const audioQueueRef = useRef([]);    
   const isPlayingTTSRef = useRef(false);
+
+  const ttsVolRef = useRef(settings.ttsVolume);
+  const ttsRateRef = useRef(settings.ttsPlaybackRate);
+  useEffect(() => { ttsVolRef.current = settings.ttsVolume; }, [settings.ttsVolume]);
+  useEffect(() => { ttsRateRef.current = settings.ttsPlaybackRate; }, [settings.ttsPlaybackRate]);
+  const ttsPauseRef = useRef(settings.ttsSentencePause);
+  useEffect(() => { ttsPauseRef.current = settings.ttsSentencePause; }, [settings.ttsSentencePause]);
 
   const videoRef = useRef(null);
   const faceMeshRef = useRef(null);
@@ -491,6 +456,16 @@ export default function App() {
   
   const enableFaceTrackingRef = useRef(settings.enableFaceTracking);
   useEffect(() => { enableFaceTrackingRef.current = settings.enableFaceTracking; }, [settings.enableFaceTracking]);
+
+  const faceTrackingModeRef = useRef(settings.faceTrackingMode);
+  useEffect(() => { faceTrackingModeRef.current = settings.faceTrackingMode; }, [settings.faceTrackingMode]);
+
+  useEffect(() => {
+    if (settings.enableFaceTracking && modelRef.current) {
+        modelRef.current.focus(0, 0);
+        if (modelRef.current.faceRigPrev) modelRef.current.faceRigPrev = {};
+    }
+  }, [settings.enableFaceTracking]);
 
   const nextProactiveTimeRef = useRef(Date.now() + 999999999);
   
@@ -520,12 +495,6 @@ export default function App() {
           setSettings(s => ({ ...s, [fallbackKeyMap[key]]: value }));
       }
   };
-
-  const showToast = useCallback((message, type = 'info', duration = 4000) => {
-    setToast({ visible: true, message, type });
-    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
-    toastTimeoutRef.current = setTimeout(() => { setToast(prev => ({ ...prev, visible: false })); }, duration); 
-  }, []);
 
   const handleCopyMessage = (text) => {
     const textArea = document.createElement("textarea"); textArea.value = text; document.body.appendChild(textArea); textArea.select();
@@ -573,22 +542,29 @@ export default function App() {
 
         faceMeshRef.current = faceMesh;
 
-        const camera = new window.Camera(videoRef.current, {
-            onFrame: async () => {
-                if (faceMeshRef.current && videoRef.current) {
-                    await faceMeshRef.current.send({ image: videoRef.current });
-                }
-            },
-            width: 640,
-            height: 480
-        });
-
-        cameraRef.current = camera;
-        await camera.start();
+        // 使用原生 getUserMedia 替代 Camera 以增加兼容性
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+            videoRef.current.srcObject = stream;
+            videoRef.current.onloadedmetadata = () => {
+                videoRef.current.play();
+                const sendFrames = async () => {
+                    if (faceMeshRef.current && videoRef.current && settings.enableFaceTracking) {
+                        try {
+                            await faceMeshRef.current.send({ image: videoRef.current });
+                        } catch (e) { }
+                        requestAnimationFrame(sendFrames);
+                    }
+                };
+                sendFrames();
+            };
+        } else {
+             throw new Error("浏览器不支持摄像头 API");
+        }
         
         setLive2dStatus('');
         setIsFaceTrackingLoading(false);
-        showToast("📸 摄像头实时面捕已就绪，保持面容在镜头中央即可驱动模型", "success");
+        showToast("📸 摄像头实时面捕已就绪", "success");
 
     } catch (err) {
         setIsFaceTrackingLoading(false);
@@ -596,13 +572,9 @@ export default function App() {
         showToast("摄像头捕捉启动遭遇异常：" + err.message, "error");
         setLive2dStatus('');
     }
-  }, [showToast]);
+  }, [showToast, settings.enableFaceTracking]);
 
   const stopFaceTracking = useCallback(() => {
-    if (cameraRef.current) {
-        cameraRef.current.stop();
-        cameraRef.current = null;
-    }
     if (faceMeshRef.current) {
         faceMeshRef.current.close();
         faceMeshRef.current = null;
@@ -629,34 +601,30 @@ export default function App() {
   }, [stopFaceTracking]);
 
 
+  // ✨ 核心大迁徙修复：等待黑盒数据唤醒后，再加载媒体并精准恢复上次播放的 BGM
   useEffect(() => {
+    if (isCoreLoading) return; // 拦截开机的空状态，等待真实 settings 就绪
+    
     loadImageFromDB('titleBgImage').then(img => { if (img) setLocalTitleBgImage(img); }).catch(console.error);
     loadModelsListFromDB().then(list => { if (list) setModelsList(list); }).catch(console.error);
     loadBgListFromDB().then(list => { if (list) setBgList(list); }).catch(console.error);
+    
     loadBGMFromDB().then(list => {
       if (list && list.length > 0) {
         setBgmList(list);
+        // 此时 settings 已经从黑盒中满血复活，能精准拿到上次的 currentBgmId
         if (settings.currentBgmId) {
-          const idx = list.findIndex(b => b.id === settings.currentBgmId); setCurrentBgmIndex(idx !== -1 ? idx : 0);
-        } else { setCurrentBgmIndex(0); }
+          const idx = list.findIndex(b => b.id === settings.currentBgmId); 
+          setCurrentBgmIndex(idx !== -1 ? idx : 0);
+        } else { 
+          setCurrentBgmIndex(0); 
+        }
       }
     }).catch(console.error);
-    if (!activeSessionId && sessions.length > 0) setActiveSessionId(sessions[0].id);
-  }, []);
-
-  useEffect(() => { localStorage.setItem('live2d_settings_v34', JSON.stringify(settings)); }, [settings]);
-  useEffect(() => { localStorage.setItem('live2d_sessions_v34', JSON.stringify(sessions)); }, [sessions]);
-  useEffect(() => { localStorage.setItem('live2d_saves_v34', JSON.stringify(saveSlots)); }, [saveSlots]);
-  useEffect(() => { localStorage.setItem('live2d_quicksave_v34', JSON.stringify(quickSaveData)); }, [quickSaveData]);
-  useEffect(() => { localStorage.setItem('live2d_autosave_v34', JSON.stringify(autoSaveData)); }, [autoSaveData]);
-  useEffect(() => { localStorage.setItem('live2d_memos_v34', JSON.stringify(memos)); }, [memos]);
+  }, [isCoreLoading]); // 依赖黑盒加载状态
   
   useEffect(() => { if (activeSessionId) { localStorage.setItem('live2d_active_session_v34', activeSessionId); setStorySummary(''); } }, [activeSessionId]);
   useEffect(() => { if (isLogOpen && logEndRef.current) logEndRef.current.scrollIntoView({ behavior: 'smooth' }); }, [sessions, activeSessionId, isLogOpen]);
-
-  useEffect(() => { 
-    if (activeAudioRef.current) { activeAudioRef.current.volume = settings.ttsVolume; activeAudioRef.current.playbackRate = settings.ttsPlaybackRate || 1.0; }
-  }, [settings.ttsVolume, settings.ttsPlaybackRate]);
 
   useEffect(() => { bgmAudioRef.current.volume = settings.bgmVolume; }, [settings.bgmVolume]);
 
@@ -664,14 +632,26 @@ export default function App() {
     if (currentBgmIndex >= 0 && bgmList[currentBgmIndex]) {
       const bgmItem = bgmList[currentBgmIndex]; const url = URL.createObjectURL(bgmItem.blob);
       bgmAudioRef.current.src = url; bgmAudioRef.current.loop = settings.bgmMode === 'loop'; setSettings(s => ({ ...s, currentBgmId: bgmItem.id }));
-      if (isBgmPlaying) bgmAudioRef.current.play().catch(e => console.error("BGM播放失败", e));
+      
+      if (isBgmPlaying) {
+         bgmAudioRef.current.play().catch(e => console.warn("BGM Background play deferred:", e.message));
+      }
+      
       if (settings.enableBgmToast) {
         setBgmToast({ visible: true, name: bgmItem.name });
         if (bgmToastTimeoutRef.current) clearTimeout(bgmToastTimeoutRef.current);
         bgmToastTimeoutRef.current = setTimeout(() => { setBgmToast(prev => ({ ...prev, visible: false })); }, 3000);
       }
+
+      if ('mediaSession' in navigator) {
+         navigator.mediaSession.metadata = new window.MediaMetadata({ title: bgmItem.name, artist: 'GalGame Web Chat' });
+         navigator.mediaSession.setActionHandler('previoustrack', handlePrevBgm);
+         navigator.mediaSession.setActionHandler('nexttrack', handleNextBgm);
+         navigator.mediaSession.setActionHandler('play', () => { bgmAudioRef.current.play(); setIsBgmPlaying(true); });
+         navigator.mediaSession.setActionHandler('pause', () => { bgmAudioRef.current.pause(); setIsBgmPlaying(false); });
+      }
     }
-  }, [currentBgmIndex, settings.bgmMode, bgmList]);
+  }, [currentBgmIndex, settings.bgmMode, bgmList, handlePrevBgm, handleNextBgm]);
 
   useEffect(() => {
     const audio = bgmAudioRef.current;
@@ -687,13 +667,14 @@ export default function App() {
   const toggleBgm = () => {
     if (bgmList.length === 0) return showToast("暂无音乐，请先在设置中上传 BGM", "info");
     if (isBgmPlaying) { bgmAudioRef.current.pause(); setIsBgmPlaying(false); } 
-    else { bgmAudioRef.current.play().catch(e => showToast("播放失败:"+e.message, "error")); setIsBgmPlaying(true); }
+    else { bgmAudioRef.current.play().catch(e => console.warn("播放被拦截:", e)); setIsBgmPlaying(true); }
   };
 
   const handleBgmUpload = async (e) => {
     const files = Array.from(e.target.files); if (!files.length) return; showToast(`正在导入 ${files.length} 首音乐...`); let added = 0;
     for (let file of files) {
-      const bgmItem = { id: Date.now() + Math.random(), name: file.name, blob: file };
+      // ✨ 为音乐打上当前镜像的专属印记
+      const bgmItem = { id: `${getActiveMirrorId()}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`, name: file.name, blob: file };
       try { await saveBGMToDB(bgmItem); setBgmList(prev => [...prev, bgmItem]); added++; } catch (err) {}
     }
     if (currentBgmIndex === -1 && added > 0) setCurrentBgmIndex(0); showToast(`成功导入 ${added} 首音乐`, "success"); e.target.value = ''; 
@@ -710,7 +691,8 @@ export default function App() {
     for (let file of files) {
       try {
         const dataUrl = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = ev => resolve(ev.target.result); reader.onerror = err => reject(err); reader.readAsDataURL(file); });
-        const bgItem = { id: Date.now() + Math.random(), name: file.name, dataUrl }; await saveBgItemToDB(bgItem); setBgList(prev => [...prev, bgItem]); added++;
+        // ✨ 为背景图打上当前镜像的专属印记
+        const bgItem = { id: `${getActiveMirrorId()}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`, name: file.name, dataUrl }; await saveBgItemToDB(bgItem); setBgList(prev => [...prev, bgItem]); added++;
       } catch (err) {}
     }
     if (!settings.currentBgId && added > 0) setSettings(prev => ({ ...prev, currentBgId: bgList.length > 0 ? bgList[0].id : null })); showToast(`成功导入 ${added} 张背景图`, "success"); e.target.value = '';
@@ -728,6 +710,53 @@ export default function App() {
   };
 
   const clearTitleBgImage = async () => { await saveImageToDB('titleBgImage', null); setLocalTitleBgImage(''); showToast("已清除主标题背景", "info"); };
+
+  // ✨ Mod 插件上传处理器 (修复安卓无法选取文件的问题)
+  const handleModUpload = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      // 放宽后缀校验，支持安卓玩家把 js 改成 txt 强行上传
+      if (!file.name.toLowerCase().endsWith('.js') && !file.name.toLowerCase().endsWith('.txt')) {
+          showToast("请上传 .js 格式的插件文件！\n(若安卓文件浏览器变灰，请把插件重命名为 .txt 后缀即可选中)", "error", 6000);
+          return;
+      }
+      const text = await file.text();
+      const modId = Date.now().toString();
+      const modItem = {
+          id: modId,
+          name: file.name.replace(/\.txt$/i, '.js'), // 伪装上传后自动洗白还原为 .js
+          code: text,
+          enabled: true,
+          installDate: new Date().toLocaleString()
+      };
+      try {
+          await saveModToDB(modItem);
+          setModsList(prev => [...prev, modItem]);
+          showToast(`模组 [${modItem.name}] 安装成功！刷新页面后生效。`, "success", 5000);
+          
+          // 立即注入运行
+          const script = document.createElement('script');
+          script.textContent = `(function() { try { ${text} } catch(e) { console.error('Mod Error:', e); } })();`;
+          document.head.appendChild(script);
+
+      } catch (err) {
+          showToast(`安装失败: ${err.message}`, "error");
+      }
+      e.target.value = '';
+  };
+  const toggleModEnabled = async (id, currentStatus) => {
+      const updatedList = modsList.map(m => m.id === id ? { ...m, enabled: !currentStatus } : m);
+      setModsList(updatedList);
+      const modToUpdate = updatedList.find(m => m.id === id);
+      if (modToUpdate) await saveModToDB(modToUpdate);
+      showToast("模组状态已更新，刷新页面后生效", "info");
+  };
+
+  const removeMod = async (id) => {
+      await deleteModFromDB(id);
+      setModsList(prev => prev.filter(m => m.id !== id));
+      showToast("模组已彻底卸载", "success");
+  };
 
   const handleAddMemo = () => {
     if (!newMemoText.trim()) return; const newMemo = { id: Date.now().toString(), text: newMemoText.trim(), date: newMemoDate, isDone: false, hasReminded: false };
@@ -761,7 +790,10 @@ export default function App() {
                 if (!m.isDone && !m.hasReminded && m.date) {
                     const mDate = new Date(m.date);
                     if (now >= mDate && (now.getTime() - mDate.getTime()) < 5 * 60 * 1000) {
-                        changed = true; window.dispatchEvent(new CustomEvent('trigger-reminder', { detail: m.text })); return { ...m, hasReminded: true };
+                        changed = true; 
+                        window.dispatchEvent(new CustomEvent('trigger-reminder', { detail: m.text })); 
+                        // ✨ 核心修复：触发提醒后，不仅标记已提醒，还自动标记为已完成(isDone: true)
+                        return { ...m, hasReminded: true, isDone: true }; 
                     }
                 } return m;
             }); return changed ? newMemos : prevMemos;
@@ -773,22 +805,31 @@ export default function App() {
   useEffect(() => {
     const handleReminder = (e) => {
         const memoText = e.detail;
-        if (appMode === 'game' && !isLoading && activeSessionId) {
-            triggerSendMessage(`【系统自动触发：内部指令】现在时间到了！玩家设定的日程：“${memoText}”已生效。请立刻主动开口提醒玩家，用符合你人设的自然语气，绝对不要复述这条系统指令或提及“系统自动触发”，直接进入角色表现出是你自己记住并提醒的。`, true);
+        // ✨ 加入并发锁保护，防止在极短时间内多次触发导致画面闪烁
+        if (appMode === 'game' && !isLoadingRef.current && activeSessionId) {
+            // ✨ 核心修复：严厉警告 AI 这次是提醒，绝对禁止再次生成 <ADD_MEMO> 标签！
+            triggerSendMessage(`【系统自动触发：内部指令】现在时间到了！玩家设定的日程：“${memoText}”已生效。请立刻主动开口提醒玩家，用符合你人设的自然语气，绝对不要复述这条系统指令或提及“系统自动触发”，直接进入角色表现出是你自己记住并提醒的。**[最高警告]：本次是执行提醒任务，请绝对不要在结尾输出 <ADD_MEMO> 标签重复添加日程！**`, true);
         } else { showToast(`⏰ 日程提醒: ${memoText}\n(因处于系统菜单或AI正忙，未能触发语音互动)`, 'success', 8000); }
     };
     const handleProactiveChat = () => {
-        if (appMode === 'game' && !isLoading && activeSessionId) {
+        if (appMode === 'game' && !isLoadingRef.current && activeSessionId) {
             triggerSendMessage(`【系统自动触发：主动搭话】距离上次对话已经过了一段时间，请你现在主动找玩家搭话，随便聊点什么，分享一下心情、日常或者开启一个新话题。语气要自然、生动，符合你的人设。绝对不要复述这条系统指令或提及“系统自动触发”，直接进入角色！`, true);
         }
     };
+    const handlePluginSendMsg = (e) => {
+        if (e.detail && e.detail.text) {
+            triggerSendMessage(e.detail.text, e.detail.hidden);
+        }
+    }
     window.addEventListener('trigger-reminder', handleReminder);
     window.addEventListener('trigger-proactive-chat', handleProactiveChat);
+    window.addEventListener('plugin-send-msg', handlePluginSendMsg);
     return () => {
         window.removeEventListener('trigger-reminder', handleReminder);
         window.removeEventListener('trigger-proactive-chat', handleProactiveChat);
+        window.removeEventListener('plugin-send-msg', handlePluginSendMsg);
     }
-  }); 
+  });
 
   const saveCurrentAsCharCard = () => {
     const newCard = { id: Date.now().toString(), userName: settings.userName, aiName: settings.aiName, prompt: settings.customSystemPrompt };
@@ -824,36 +865,286 @@ export default function App() {
     createNewSession(); setIsSettingsOpen(false); showToast(`✅ 已切换至角色: ${card.aiName}，全新剧情已就绪`, 'success');
   };
 
-  const handleExportBackup = async () => {
-    showToast("正在打包系统数据，请稍候...", "info", 5000);
+  // ✨ --- 修复重构的 handleExportBackup 功能 ---
+  // 修复 Invalid string length 崩溃报错 (打包 JSON 时自动拦截并丢弃造成内存溢出的巨型图片和音乐Base64代码)
+ const handleExportFullBackup = async () => {
+    showToast("📦 正在打包全局全量数据（包含所有分身），请耐心等待...", "info", 15000);
     try {
-      const bgListDB = await loadBgListFromDB() || []; const bgmListDB = await loadBGMFromDB() || [];
-      const bgmFiles = await Promise.all(bgmListDB.map(async (bgm) => ({ id: bgm.id, name: bgm.name, base64: await blobToBase64(bgm.blob) })));
-      const titleBg = await loadImageFromDB('titleBgImage');
-      const safeSettings = { ...settings }; delete safeSettings.openaiBaseUrl; delete safeSettings.openaiApiKey;
-      const backupData = { version: "1.0", timestamp: new Date().toISOString(), settings: safeSettings, sessions, activeSessionId, saveSlots, quickSaveData, autoSaveData, bgImages: bgListDB, bgmFiles, titleBgImage: titleBg };
-      const blob = new Blob([JSON.stringify(backupData)], { type: "application/json" });
-      const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url;
-      const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, ""); a.download = `VNChat_全量备份_${dateStr}.json`;
-      document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url); showToast("✅ 备份导出成功！", "success");
+      await injectScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+      const zip = new window.JSZip();
+      zip.folder("bgm"); zip.folder("models"); zip.folder("bgs"); zip.folder("videos");
+      const db = await initDB(); const exportData = { backupType: 'full', stores: {} };
+      const stores = ['core_data', 'model_files', 'app_settings', 'bgm_files', 'bg_images', 'live2d_models', 'app_mods'];
+      
+      for (const storeName of stores) {
+        if (!db.objectStoreNames.contains(storeName)) continue;
+        const tx = db.transaction(storeName, 'readonly'); const store = tx.objectStore(storeName);
+        const keys = await new Promise(res => { const r = store.getAllKeys(); r.onsuccess = () => res(r.result); });
+        const values = await new Promise(res => { const r = store.getAll(); r.onsuccess = () => res(r.result); });
+        exportData.stores[storeName] = [];
+        for (let i = 0; i < keys.length; i++) {
+          let val = values[i]; const key = keys[i];
+          if (storeName === 'bgm_files' && val.blob) {
+            const safeName = (val.name || 'audio.mp3').replace(/[^a-zA-Z0-9.\-_]/g, '_'); const blobPath = `bgm/${key}_${safeName}`; 
+            try { const buffer = await val.blob.arrayBuffer(); zip.file(blobPath, buffer); val = { ...val, blob: { __isZipBlob: true, path: blobPath, type: val.blob.type } }; } catch(e) {}
+          } else if (storeName === 'live2d_models' && val.files) {
+            val.files = await Promise.all(val.files.map(async (f, fIdx) => {
+              if (f.blob) { 
+                const safeName = f.path ? f.path.replace(/[^a-zA-Z0-9.\-_]/g, '_') : 'file'; const blobPath = `models/${key}/${fIdx}_${safeName}`; 
+                try { const buffer = await f.blob.arrayBuffer(); zip.file(blobPath, buffer); return { ...f, blob: { __isZipBlob: true, path: blobPath, type: f.blob.type } }; } catch(e) { return f; }
+              } return f;
+            }));
+          } else if (storeName === 'bg_images' && val.dataUrl) {
+            const txtPath = `bgs/${key}.txt`; zip.file(txtPath, val.dataUrl); val = { ...val, dataUrl: { __isZipTxt: true, path: txtPath } };
+          }
+          exportData.stores[storeName].push({ key: key, value: val });
+        }
+      }
+
+      // 备份全局镜像元数据
+      try {
+          const mirrorDbReq = indexedDB.open('GWC_Image_Mirrors_DB');
+          const mirrorDb = await new Promise((res) => { mirrorDbReq.onsuccess = e => res(e.target.result); mirrorDbReq.onerror = () => res(null); mirrorDbReq.onupgradeneeded = e => { e.target.transaction.abort(); res(null); }; });
+          if (mirrorDb && mirrorDb.objectStoreNames.contains('mirrors')) {
+              const tx = mirrorDb.transaction(['mirrors', 'config'], 'readonly');
+              const mirrors = await new Promise(res => { const r = tx.objectStore('mirrors').getAll(); r.onsuccess = () => res(r.result); });
+              const config = await new Promise(res => { const r = tx.objectStore('config').getAll(); r.onsuccess = () => res(r.result); });
+              exportData.mirrorsDb = { mirrors, config };
+          }
+      } catch(e) {}
+
+      // 备份视频数据库
+      try {
+          const videoDbReq = indexedDB.open('GWC_VideoBG_Plugin_DB');
+          const videoDb = await new Promise((res) => { videoDbReq.onsuccess = e => res(e.target.result); videoDbReq.onerror = () => res(null); videoDbReq.onupgradeneeded = e => { e.target.transaction.abort(); res(null); }; });
+          if (videoDb && videoDb.objectStoreNames.contains('videos')) {
+              const tx = videoDb.transaction('videos', 'readonly'); const store = tx.objectStore('videos');
+              const keys = await new Promise(res => { const r = store.getAllKeys(); r.onsuccess = () => res(r.result); });
+              const values = await new Promise(res => { const r = store.getAll(); r.onsuccess = () => res(r.result); });
+              exportData.videosDb = [];
+              for (let i = 0; i < keys.length; i++) {
+                  if (values[i]) {
+                      const blobPath = `videos/${keys[i]}_bg.mp4`; const buffer = await values[i].arrayBuffer(); zip.file(blobPath, buffer);
+                      exportData.videosDb.push({ key: keys[i], value: { __isZipBlob: true, path: blobPath, type: values[i].type } });
+                  }
+              }
+          }
+      } catch(e) {}
+
+      zip.file("database.json", JSON.stringify(exportData));
+      const zipBlob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 5 } });
+      const url = URL.createObjectURL(zipBlob); const a = document.createElement('a'); a.href = url;
+      a.download = `GWC_全量系统备份_${new Date().toISOString().slice(0, 10).replace(/-/g, "")}.zip`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url); 
+      showToast("✅ 全局 ZIP 备份导出成功！", "success", 5000);
     } catch (err) { showToast(`导出失败: ${err.message}`, "error"); }
   };
 
-  const handleImportBackup = async (e) => {
-    const file = e.target.files[0]; if (!file) return; showToast("正在恢复系统数据，切勿关闭页面...", "info", 8000);
+  // 2. ✨ 新增：仅导出当前活跃镜像的独立备份包
+  const handleExportSingleBackup = async () => {
+    const targetId = getActiveMirrorId();
+    showToast(`📦 正在打包当前独立镜像 [${targetId}]...`, "info", 15000);
     try {
-      const text = await file.text(); const backupData = JSON.parse(text); if (!backupData.version) throw new Error("无效的备份文件格式");
-      const currentUrl = settings.openaiBaseUrl; const currentKey = settings.openaiApiKey;
-      const newSettings = { ...DEFAULT_SETTINGS, ...backupData.settings, openaiBaseUrl: currentUrl, openaiApiKey: currentKey };
-      setSettings(newSettings);
-      if (backupData.sessions) setSessions(backupData.sessions); if (backupData.activeSessionId) setActiveSessionId(backupData.activeSessionId);
-      if (backupData.saveSlots) setSaveSlots(backupData.saveSlots); if (backupData.quickSaveData !== undefined) setQuickSaveData(backupData.quickSaveData);
-      if (backupData.autoSaveData !== undefined) setAutoSaveData(backupData.autoSaveData);
-      if (backupData.bgImages && backupData.bgImages.length > 0) { for (const bg of backupData.bgImages) await saveBgItemToDB(bg); setBgList(await loadBgListFromDB()); }
-      if (backupData.bgmFiles && backupData.bgmFiles.length > 0) { for (const bgm of backupData.bgmFiles) { const res = await fetch(bgm.base64); const blob = await res.blob(); await saveBGMToDB({ id: bgm.id, name: bgm.name, blob }); } setBgmList(await loadBGMFromDB()); }
-      if (backupData.titleBgImage !== undefined) { await saveImageToDB('titleBgImage', backupData.titleBgImage); setLocalTitleBgImage(backupData.titleBgImage || ''); }
-      showToast("🎉 全量数据恢复成功！Live2D模型由于安全限制需手动重新导入。", "success", 6000);
-    } catch (err) { showToast(`恢复失败: ${err.message}`, "error"); } e.target.value = '';
+      await injectScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+      const zip = new window.JSZip();
+      zip.folder("bgm"); zip.folder("models"); zip.folder("bgs"); zip.folder("videos");
+      const db = await initDB(); 
+      // 标记为单体备份，并记录源 ID，以便导入时进行智能映射
+      const exportData = { backupType: 'single', sourceMirrorId: targetId, stores: {} };
+      const stores = ['core_data', 'app_settings', 'bgm_files', 'bg_images', 'live2d_models'];
+      
+      for (const storeName of stores) {
+        if (!db.objectStoreNames.contains(storeName)) continue;
+        const tx = db.transaction(storeName, 'readonly'); const store = tx.objectStore(storeName);
+        const keys = await new Promise(res => { const r = store.getAllKeys(); r.onsuccess = () => res(r.result); });
+        const values = await new Promise(res => { const r = store.getAll(); r.onsuccess = () => res(r.result); });
+        exportData.stores[storeName] = [];
+        for (let i = 0; i < keys.length; i++) {
+          let val = values[i]; const key = keys[i];
+          // 仅打包带有当前镜像前缀的数据
+          if (typeof key === 'string' && (key.startsWith(`${targetId}_`) || key === targetId)) {
+             if (storeName === 'bgm_files' && val.blob) {
+                const blobPath = `bgm/${key}_audio.bin`; 
+                try { const buffer = await val.blob.arrayBuffer(); zip.file(blobPath, buffer); val = { ...val, blob: { __isZipBlob: true, path: blobPath, type: val.blob.type } }; } catch(e) {}
+             } else if (storeName === 'live2d_models' && val.files) {
+                val.files = await Promise.all(val.files.map(async (f, fIdx) => {
+                  if (f.blob) { const blobPath = `models/${key}/${fIdx}_file`; try { const buffer = await f.blob.arrayBuffer(); zip.file(blobPath, buffer); return { ...f, blob: { __isZipBlob: true, path: blobPath, type: f.blob.type } }; } catch(e) { return f; } } return f;
+                }));
+             } else if (storeName === 'bg_images' && val.dataUrl) {
+                const txtPath = `bgs/${key}.txt`; zip.file(txtPath, val.dataUrl); val = { ...val, dataUrl: { __isZipTxt: true, path: txtPath } };
+             }
+             exportData.stores[storeName].push({ key: key, value: val });
+          }
+        }
+      }
+
+      // 打包当前镜像专属视频壁纸
+      try {
+          const videoDbReq = indexedDB.open('GWC_VideoBG_Plugin_DB');
+          const videoDb = await new Promise((res) => { videoDbReq.onsuccess = e => res(e.target.result); videoDbReq.onerror = () => res(null); });
+          if (videoDb && videoDb.objectStoreNames.contains('videos')) {
+              const tx = videoDb.transaction('videos', 'readonly'); const store = tx.objectStore('videos');
+              const videoKey = `${targetId}_title_video`;
+              const videoVal = await new Promise(res => { const r = store.get(videoKey); r.onsuccess = () => res(r.result); r.onerror = () => res(null); });
+              if (videoVal) {
+                  exportData.videoData = [];
+                  const blobPath = `videos/${videoKey}.mp4`; const buffer = await videoVal.arrayBuffer(); zip.file(blobPath, buffer);
+                  exportData.videoData.push({ key: videoKey, value: { __isZipBlob: true, path: blobPath, type: videoVal.type } });
+              }
+          }
+      } catch(e) {}
+
+      zip.file("database.json", JSON.stringify(exportData));
+      const zipBlob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 5 } });
+      const url = URL.createObjectURL(zipBlob); const a = document.createElement('a'); a.href = url;
+      a.download = `GWC_单体镜像备份_${targetId}_${new Date().toISOString().slice(0, 10).replace(/-/g, "")}.zip`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url); 
+      showToast("✅ 独立镜像 ZIP 导出成功！", "success", 5000);
+    } catch (err) { showToast(`导出失败: ${err.message}`, "error"); }
+  };
+
+  // 3. ✨ 新增：独立抹除当前镜像数据
+  const handleClearCurrentMirror = async () => {
+      if (!window.confirm("⚠️ 危险操作！\\n确定要清空当前镜像的所有聊天记录、存档和专属媒体资源吗？\\n(此操作不可逆，但其他分身镜像不受影响)")) return;
+      showToast("🗑️ 正在抹除当前镜像数据...", "info");
+      const targetId = getActiveMirrorId();
+      try {
+          const db = await initDB();
+          const stores = ['core_data', 'app_settings', 'bgm_files', 'bg_images', 'live2d_models'];
+          for (const storeName of stores) {
+              if (!db.objectStoreNames.contains(storeName)) continue;
+              await new Promise((res, rej) => {
+                  const tx = db.transaction(storeName, 'readwrite'); const store = tx.objectStore(storeName);
+                  const req = store.getAllKeys();
+                  req.onsuccess = () => { req.result.forEach(k => { if (String(k).startsWith(`${targetId}_`)) store.delete(k); }); res(); };
+                  req.onerror = rej;
+              });
+          }
+          // 抹除专属视频
+          try {
+              const videoDbReq = indexedDB.open('GWC_VideoBG_Plugin_DB');
+              const videoDb = await new Promise((res) => { videoDbReq.onsuccess = e => res(e.target.result); videoDbReq.onerror = () => res(null); });
+              if (videoDb && videoDb.objectStoreNames.contains('videos')) {
+                  await new Promise(res => { videoDb.transaction('videos', 'readwrite').objectStore('videos').delete(`${targetId}_title_video`).onsuccess = res; });
+              }
+          } catch(e) {}
+          
+          showToast("✅ 当前镜像已纯净重置，即将重启", "success");
+          setTimeout(() => window.location.reload(), 1500);
+      } catch(e) { showToast("清除失败", "error"); }
+  };
+
+  // 4. 智能恢复引擎 (自动识别并处理全量包/单体包)
+  const handleSmartImportBackup = async (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    showToast("📦 正在安全挂载 ZIP 数据卷，切勿关闭页面...", "info", 15000);
+    try {
+      await injectScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+      const zip = await window.JSZip.loadAsync(file);
+      const dbJsonFile = zip.file("database.json"); if (!dbJsonFile) throw new Error("缺失 database.json");
+      
+      const parsedData = JSON.parse(await dbJsonFile.async("text"));
+      const isSingle = parsedData.backupType === 'single';
+      const importData = isSingle ? parsedData.stores : parsedData.stores; 
+      
+      const db = await initDB();
+      const currentMirrorId = getActiveMirrorId();
+      const sourceMirrorId = isSingle ? parsedData.sourceMirrorId : null;
+
+      const storesToProcess = isSingle ? ['core_data', 'app_settings', 'bgm_files', 'bg_images', 'live2d_models'] 
+                                       : ['core_data', 'model_files', 'app_settings', 'bgm_files', 'bg_images', 'live2d_models', 'app_mods'];
+
+      for (const storeName of storesToProcess) {
+        if (!importData[storeName] || !db.objectStoreNames.contains(storeName)) continue;
+        
+        // 若为全量恢复则清空全表；若为单体恢复则只清空当前镜像前缀的数据
+        await new Promise((res, rej) => { 
+            const tx = db.transaction(storeName, 'readwrite'); const store = tx.objectStore(storeName); 
+            if (isSingle) {
+                const req = store.getAllKeys();
+                req.onsuccess = () => { req.result.forEach(k => { if (String(k).startsWith(`${currentMirrorId}_`)) store.delete(k); }); res(); };
+            } else {
+                store.clear().onsuccess = res; 
+            }
+        });
+        
+        for (const item of importData[storeName]) {
+          let val = item.value;
+          let mappedKey = item.key;
+
+          // ✨ 核心映射机制：允许将任意单体包“强行克隆注入”到当前活跃分身中
+          if (isSingle) {
+              if (typeof mappedKey === 'string' && mappedKey.startsWith(`${sourceMirrorId}_`)) mappedKey = mappedKey.replace(`${sourceMirrorId}_`, `${currentMirrorId}_`);
+              if (val && typeof val === 'object' && val.id && typeof val.id === 'string' && val.id.startsWith(`${sourceMirrorId}_`)) val.id = val.id.replace(`${sourceMirrorId}_`, `${currentMirrorId}_`);
+          }
+
+          if (storeName === 'bgm_files' && val.blob && val.blob.__isZipBlob) {
+            const zipEntry = zip.file(val.blob.path);
+            if (zipEntry) { const blobData = await zipEntry.async("arraybuffer"); val.blob = new Blob([blobData], { type: val.blob.type }); }
+          } else if (storeName === 'live2d_models' && val.files) {
+            val.files = await Promise.all(val.files.map(async f => {
+              if (f.blob && f.blob.__isZipBlob) { 
+                const zipEntry = zip.file(f.blob.path);
+                if(zipEntry) { const blobData = await zipEntry.async("arraybuffer"); f.blob = new Blob([blobData], { type: f.blob.type }); }
+              } return f;
+            }));
+          } else if (storeName === 'bg_images' && val.dataUrl && val.dataUrl.__isZipTxt) {
+            const zipEntry = zip.file(val.dataUrl.path);
+            if (zipEntry) val.dataUrl = await zipEntry.async("text");
+          }
+          await new Promise((res, rej) => { const tx = db.transaction(storeName, 'readwrite'); const store = tx.objectStore(storeName); const req = store.put(val, store.keyPath ? undefined : mappedKey); req.onsuccess = res; req.onerror = rej; });
+        }
+      }
+
+      // 若为全量恢复，则额外处理跨库的系统配置
+      if (!isSingle) {
+          if (parsedData.mirrorsDb) {
+              const mirrorDbReq = indexedDB.open('GWC_Image_Mirrors_DB', 2);
+              const mirrorDb = await new Promise((res, rej) => { mirrorDbReq.onupgradeneeded = e => { const d = e.target.result; if (!d.objectStoreNames.contains('mirrors')) d.createObjectStore('mirrors', { keyPath: 'id' }); if (!d.objectStoreNames.contains('config')) d.createObjectStore('config', { keyPath: 'key' }); }; mirrorDbReq.onsuccess = e => res(e.target.result); mirrorDbReq.onerror = e => rej(e.target.error); });
+              const tx = mirrorDb.transaction(['mirrors', 'config'], 'readwrite');
+              await new Promise(res => { tx.objectStore('mirrors').clear().onsuccess = res; }); await new Promise(res => { tx.objectStore('config').clear().onsuccess = res; });
+              const mirrorsData = parsedData.mirrorsDb.mirrors || []; for (const m of mirrorsData) tx.objectStore('mirrors').put(m);
+              const configData = parsedData.mirrorsDb.config || []; for (const c of configData) tx.objectStore('config').put(c);
+              await new Promise(res => { tx.oncomplete = res; });
+          }
+          if (parsedData.videosDb) {
+              const videoDbReq = indexedDB.open('GWC_VideoBG_Plugin_DB', 1);
+              const videoDb = await new Promise((res, rej) => { videoDbReq.onupgradeneeded = e => { if (!e.target.result.objectStoreNames.contains('videos')) e.target.result.createObjectStore('videos'); }; videoDbReq.onsuccess = e => res(e.target.result); videoDbReq.onerror = e => rej(e.target.error); });
+              const tx = videoDb.transaction('videos', 'readwrite'); await new Promise(res => { tx.objectStore('videos').clear().onsuccess = res; });
+              for (const item of parsedData.videosDb) {
+                  if (item.value && item.value.__isZipBlob) {
+                      const zipEntry = zip.file(item.value.path);
+                      if (zipEntry) {
+                          const buffer = await zipEntry.async("arraybuffer"); const blob = new Blob([buffer], { type: item.value.type });
+                          await new Promise(res => { const putTx = videoDb.transaction('videos', 'readwrite'); putTx.objectStore('videos').put(blob, item.key).onsuccess = res; });
+                      }
+                  }
+              }
+          }
+      } else {
+          // 单体恢复，仅处理专属视频壁纸
+          if (parsedData.videoData) {
+              const videoDbReq = indexedDB.open('GWC_VideoBG_Plugin_DB', 1);
+              const videoDb = await new Promise((res) => { videoDbReq.onupgradeneeded = e => { if (!e.target.result.objectStoreNames.contains('videos')) e.target.result.createObjectStore('videos'); }; videoDbReq.onsuccess = e => res(e.target.result); videoDbReq.onerror = () => res(null); });
+              if (videoDb) {
+                  for (const item of parsedData.videoData) {
+                      if (item.value && item.value.__isZipBlob) {
+                          const zipEntry = zip.file(item.value.path);
+                          if (zipEntry) {
+                              const buffer = await zipEntry.async("arraybuffer"); const blob = new Blob([buffer], { type: item.value.type });
+                              const mappedVideoKey = item.key.replace(`${sourceMirrorId}_`, `${currentMirrorId}_`);
+                              await new Promise(res => { const putTx = videoDb.transaction('videos', 'readwrite'); putTx.objectStore('videos').put(blob, mappedVideoKey).onsuccess = res; });
+                          }
+                      }
+                  }
+              }
+          }
+      }
+
+      showToast(isSingle ? "🎉 单体镜像数据完美挂载并映射！系统即将重启..." : "🎉 史诗级全量数据恢复成功！系统即将重启...", "success", 5000);
+      setTimeout(() => window.location.reload(), 2000);
+    } catch (err) { showToast(`恢复失败: ${err.message}`, "error"); } 
+    e.target.value = ''; 
   };
 
   const handleFactoryReset = () => { setConfirmDialog({ isOpen: false, text: '', onConfirm: null }); try { indexedDB.deleteDatabase(DB_NAME); } catch (e) {} localStorage.clear(); window.location.reload(); };
@@ -942,22 +1233,30 @@ export default function App() {
     wheelTimeoutRef.current = setTimeout(() => { wheelTimeoutRef.current = null; }, 250); 
   }, [hasNextPage, vnPage]);
 
-  const handleSkip = useCallback((e) => { e.stopPropagation(); if (pages.length > 0) { setVnPage(pages.length - 1); } }, [pages.length]);
+ const handleSkip = useCallback((e) => { e.stopPropagation(); if (pages.length > 0) { setVnPage(pages.length - 1); } }, [pages.length]);
 
   useEffect(() => { if (vnTextContainerRef.current) vnTextContainerRef.current.scrollTop = vnTextContainerRef.current.scrollHeight; }, [currentDisplay]);
 
+  // ✨ 核心修复：在打字机流式输出时，强制翻页跟随，解决长文本被截断显示不全的问题
+  useEffect(() => {
+    if (latestMessage?.isStreaming && pages.length > 0) {
+        setVnPage(Math.max(0, pages.length - 1));
+    }
+  }, [pages.length, latestMessage?.isStreaming]);
+  // ✨ --- 修复替换的 loadScripts 功能 ---
+  // 修复 Could not find Cubism 4 runtime 报错 (替换为无跨域无防盗链的 CDN 镜像)
   const loadScripts = async () => {
     if (window.PIXI && window.PIXI.live2d) return true;
     const backupModule = window.module; const backupExports = window.exports; window.module = undefined; window.exports = undefined;
     try {
       await injectScript('https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.5.10/browser/pixi.min.js');
       await injectScript('https://cdn.jsdelivr.net/gh/dylanNew/live2d/webgl/Live2D/lib/live2d.min.js');
-      await injectScript('https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js');
+      // 核心修复点：将失效的官方 CDN 替换为安全的加速镜像
+      await injectScript('https://fastly.jsdelivr.net/gh/Eikanya/Live2d-model/Live2DCubismCore.js');
       await injectScript('https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.4.0/dist/index.min.js');
       return true;
     } catch (error) { setLive2dStatus('引擎库加载失败'); return false; } finally { if (backupModule !== undefined) window.module = backupModule; if (backupExports !== undefined) window.exports = backupExports; }
   };
-
   useEffect(() => {
     let isMounted = true;
     const initLive2D = async () => {
@@ -1005,36 +1304,30 @@ export default function App() {
         }
         const Live2DModel = window.PIXI.live2d.Live2DModel; const model = await Live2DModel.from(patchedFiles); if (!isMounted) { model.destroy(); return; }
         
-        // ✨ --- 核心阻断补丁：强制切断 Live2D 底层 FocusController 的视线追踪 ---
         if (model.internalModel && model.internalModel.focusController) {
            const originalFocusUpdate = model.internalModel.focusController.update;
            model.internalModel.focusController.update = function(dt) {
-               // 一旦面捕开启，直接跳过视线追踪器的底层运算，避免和面捕信号打架
-               if (enableFaceTrackingRef.current) return;
+               if (enableFaceTrackingRef.current && faceTrackingModeRef.current === 'full') return;
                originalFocusUpdate.call(this, dt);
            };
         }
-        // ✨ -----------------------------------------------------------------
 
         app.stage.addChild(model); modelRef.current = model; updateModelTransform(); setLive2dStatus(''); 
         
-        // ✨ --- 将面捕系统无缝注入核心模型更新循环 (Ticker Hook) ---
         if (faceTrackingTickerRef.current) app.ticker.remove(faceTrackingTickerRef.current);
         const faceTrackingTicker = () => {
-            if (!enableFaceTrackingRef.current || !faceRigRef.current || !modelRef.current) return;
+            if (!enableFaceTrackingRef.current || !modelRef.current) return;
             const rig = faceRigRef.current;
             const core = modelRef.current.internalModel.coreModel;
             if (!core) return;
             
-            // 兼容 Cubism 2.0 ~ 4.0 参数调用接口
             const setParam = (id, value) => {
                 if (core.setParameterValueById) core.setParameterValueById(id, value);
                 else if (core.setParamFloat) core.setParamFloat(id, value);
             };
 
-            // 防抖插值器，平滑消除相机特征点轻微的识别闪烁
             const lerp = (a, b, t) => a + (b - a) * t;
-            const lerpFactor = 0.5;
+            const lerpFactor = 0.5; 
 
             if (!modelRef.current.faceRigPrev) modelRef.current.faceRigPrev = {};
             const prev = modelRef.current.faceRigPrev;
@@ -1046,33 +1339,27 @@ export default function App() {
                 setParam(id, prev[id]);
             };
 
-            // 头部三轴姿态映射
-            updateParam('ParamAngleX', rig.head.degrees.y, 1);
-            updateParam('ParamAngleY', rig.head.degrees.x, 1);
-            updateParam('ParamAngleZ', rig.head.degrees.z, 1);
-            
-            // 身体轻度联动偏移，增加整体生动感
-            updateParam('ParamBodyAngleX', rig.head.degrees.y, 0.3);
-            updateParam('ParamBodyAngleY', rig.head.degrees.x, 0.3);
-            updateParam('ParamBodyAngleZ', rig.head.degrees.z, 0.3);
-
-            // 眼部双向开闭
-            updateParam('ParamEyeLOpen', rig.eye.l, 1);
-            updateParam('ParamEyeROpen', rig.eye.r, 1);
-            
-            // 唇部张弛形变
-            updateParam('ParamMouthOpenY', rig.mouth.y, 1);
-            updateParam('ParamMouthForm', rig.mouth.x, 1);
-            
-            // 虹膜注视点追踪
-            if (rig.pupil) {
-                updateParam('ParamEyeBallX', rig.pupil.x, 1);
-                updateParam('ParamEyeBallY', rig.pupil.y, 1);
+            if (rig) {
+                if (faceTrackingModeRef.current === 'full') {
+                    updateParam('ParamAngleX', rig.head.degrees.y, 1);
+                    updateParam('ParamAngleY', rig.head.degrees.x, 1);
+                    updateParam('ParamAngleZ', rig.head.degrees.z, 1);
+                    updateParam('ParamBodyAngleX', rig.head.degrees.y, 0.3);
+                    updateParam('ParamBodyAngleY', rig.head.degrees.x, 0.3);
+                    updateParam('ParamBodyAngleZ', rig.head.degrees.z, 0.3);
+                    if (rig.pupil) {
+                        updateParam('ParamEyeBallX', rig.pupil.x, 1);
+                        updateParam('ParamEyeBallY', rig.pupil.y, 1);
+                    }
+                }
+                updateParam('ParamEyeLOpen', rig.eye.l, 1);
+                updateParam('ParamEyeROpen', rig.eye.r, 1);
+                updateParam('ParamMouthOpenY', rig.mouth.y, 1);
+                updateParam('ParamMouthForm', rig.mouth.x, 1);
             }
         };
         app.ticker.add(faceTrackingTicker);
         faceTrackingTickerRef.current = faceTrackingTicker;
-        // ✨ --------------------------------------------------------
 
         const rawExps = model.internalModel?.settings?.expressions || model.internalModel?.settings?.FileReferences?.Expressions || [];
         const expList = rawExps.map((e, idx) => { let cleanName = e.Name || e.name || e.File || e.file || `表情 ${idx + 1}`; cleanName = cleanName.split('/').pop().replace(/\.exp3?\.json$/i, ''); return { id: e.Name || e.name || idx, name: cleanName }; });
@@ -1080,8 +1367,8 @@ export default function App() {
         if (settings.currentExpressionId !== null && settings.currentExpressionId !== undefined) { try { model.expression(settings.currentExpressionId); } catch(e) {} }
         
         const handleMouseMove = (event) => { 
-            // 外层拦截：阻止原生鼠标事件传递给模型的 focus() 方法
-            if (!modelRef.current || enableFaceTrackingRef.current) return; 
+            if (!modelRef.current) return; 
+            if (enableFaceTrackingRef.current && faceTrackingModeRef.current === 'full') return; 
             modelRef.current.focus(event.clientX, event.clientY); 
         }; 
         window.addEventListener('mousemove', handleMouseMove);
@@ -1115,12 +1402,22 @@ export default function App() {
     if (settings.enableClickExpression && expressions.length > 0 && modelRef.current) { const randomExp = expressions[Math.floor(Math.random() * expressions.length)]; try { modelRef.current.expression(randomExp.id); setSettings(s => ({...s, currentExpressionId: randomExp.id})); } catch(e) {} }
   }, [settings.enableClickExpression, expressions, appMode, visualAdjustMode]);
 
+  const handleResetFocus = () => {
+    if (modelRef.current) {
+      modelRef.current.focus(0, 0); 
+      if (modelRef.current.faceRigPrev) modelRef.current.faceRigPrev = {}; 
+      showToast("✨ 模型视线与头部已强制居中复位", "success");
+    }
+  };
+
   const handleModelUpload = async (e) => {
     const fileList = Array.from(e.target.files); if (!fileList.length) return;
     const hasJson = fileList.some(f => f.name.match(/\.model3?\.json$/i)); if (!hasJson) return showToast("错误：所选文件夹中不包含 model.json 或 model3.json 模型配置文件！", "error");
     const folderName = fileList[0].webkitRelativePath.split('/')[0] || '未命名模型';
     if (/[\u4e00-\u9fa5]/.test(folderName)) { showToast("⚠️ 警告：模型文件夹包含中文！\n由于浏览器本地数据库限制，含有中文的路径会导致引擎抛出 'File doesn't exist' 的错误并导致花屏或无法加载。\n👉 请先将电脑上的文件夹重命名为【纯英文】，然后重新拖入！", "error", 8000); e.target.value = ''; return; }
-    showToast("正在导入模型，请稍候...", "info"); const modelId = Date.now().toString();
+    
+    // ✨ 为大模型打上当前镜像的专属印记
+    showToast("正在导入模型，请稍候...", "info"); const modelId = `${getActiveMirrorId()}_${Date.now().toString()}`;
     const processedFiles = fileList.map(f => ({ blob: f, path: f.webkitRelativePath || f.name }));
     const newModel = { id: modelId, name: folderName, files: processedFiles };
     try {
@@ -1194,26 +1491,73 @@ export default function App() {
   };
 
   const processAudioQueue = useCallback(() => {
-    if (isPlayingTTSRef.current || audioQueueRef.current.length === 0) return; isPlayingTTSRef.current = true;
-    const nextUrl = audioQueueRef.current.shift(); activeAudioRef.current = new window.Audio(nextUrl);
-    activeAudioRef.current.volume = settings.ttsVolume; activeAudioRef.current.playbackRate = settings.ttsPlaybackRate || 1.0; 
-    activeAudioRef.current.onended = () => { URL.revokeObjectURL(nextUrl); if (ttsPauseRef.current > 0) { ttsTimeoutRef.current = setTimeout(() => { isPlayingTTSRef.current = false; processAudioQueue(); }, ttsPauseRef.current); } else { isPlayingTTSRef.current = false; processAudioQueue(); } };
-    activeAudioRef.current.play().catch(e => { console.warn("TTS 播放失败:", e); isPlayingTTSRef.current = false; processAudioQueue(); });
-  }, [settings.ttsPlaybackRate, settings.ttsVolume]);
+    if (isPlayingTTSRef.current || ttsTaskQueueRef.current.length === 0) return;
+    
+    isPlayingTTSRef.current = true;
+    const currentTask = ttsTaskQueueRef.current.shift();
+    
+    activeAudioRef.current = currentTask.audioObj;
+    activeAudioRef.current.volume = ttsVolRef.current;
+    activeAudioRef.current.playbackRate = ttsRateRef.current || 1.0; 
+    
+    activeAudioRef.current.onended = () => { 
+      if (ttsPauseRef.current > 0) { 
+        ttsTimeoutRef.current = setTimeout(() => { isPlayingTTSRef.current = false; processAudioQueue(); }, ttsPauseRef.current); 
+      } else { 
+        isPlayingTTSRef.current = false; processAudioQueue(); 
+      } 
+    };
 
-  const ttsPauseRef = useRef(settings.ttsSentencePause);
-  useEffect(() => { ttsPauseRef.current = settings.ttsSentencePause; }, [settings.ttsSentencePause]);
+    activeAudioRef.current.onerror = (e) => {
+      console.warn("TTS 音频流错误，可能后端推理异常或连接断开:", e);
+      isPlayingTTSRef.current = false; processAudioQueue();
+    };
+
+    const playPromise = activeAudioRef.current.play();
+    if (playPromise !== undefined) {
+        playPromise.catch(e => { 
+          console.warn("TTS 播放被浏览器拦截或失败:", e); 
+          isPlayingTTSRef.current = false; processAudioQueue(); 
+        });
+    }
+  }, []);
 
   const enqueueTTS = useCallback((text) => {
     if (!settings.ttsEnabled || !settings.ttsUrlTemplate || !text.trim() || settings.workMode) return;
     try {
-      const url = settings.ttsUrlTemplate.replace('{text}', encodeURIComponent(text.trim())).replace('{lang}', settings.ttsLanguage).replace('{ref_audio}', encodeURIComponent(settings.ttsRefAudio)).replace('{ref_text}', encodeURIComponent(settings.ttsRefText)).replace('{ref_lang}', settings.ttsRefLang);
-      const preloader = new window.Audio(); preloader.preload = 'auto'; preloader.src = url; audioQueueRef.current.push(url); preloader.load(); processAudioQueue();
+      let url = settings.ttsUrlTemplate
+          .replace('{text}', encodeURIComponent(text.trim()))
+          .replace('{lang}', settings.ttsLanguage);
+
+      if (settings.ttsMobileMode) {
+          // ✨ 手机端模式：利用正则彻底将 URL 中的本地参考音频参数剥离，强迫后端使用 start.py 的默认配置
+          url = url.replace(/([&?])ref_audio_path=\{ref_audio\}/g, '')
+                   .replace(/([&?])prompt_text=\{ref_text\}/g, '')
+                   .replace(/([&?])prompt_lang=\{ref_lang\}/g, '')
+                   .replace(/\?&/, '?').replace(/&$/, '');
+      } else {
+          // 电脑端模式：按原样带入本地客户端填写的参考音频
+          url = url.replace('{ref_audio}', encodeURIComponent(settings.ttsRefAudio || ''))
+                   .replace('{ref_text}', encodeURIComponent(settings.ttsRefText || ''))
+                   .replace('{ref_lang}', settings.ttsRefLang || 'zh');
+      }
+      
+      const preloader = new window.Audio();
+      preloader.preload = 'auto';
+      preloader.src = url;
+      preloader.load(); 
+
+      ttsTaskQueueRef.current.push({ text, url, audioObj: preloader });
+      processAudioQueue();
     } catch (error) {}
   }, [settings, processAudioQueue]);
 
   const clearTTSQueue = useCallback(() => {
-    audioQueueRef.current = []; if (activeAudioRef.current) { activeAudioRef.current.pause(); activeAudioRef.current.src = ''; activeAudioRef.current = null; }
+    ttsTaskQueueRef.current.forEach(task => { 
+        if (task.audioObj) { task.audioObj.pause(); task.audioObj.removeAttribute('src'); task.audioObj.load(); } 
+    });
+    ttsTaskQueueRef.current = [];
+    if (activeAudioRef.current) { activeAudioRef.current.pause(); activeAudioRef.current.removeAttribute('src'); activeAudioRef.current.load(); activeAudioRef.current = null; }
     isPlayingTTSRef.current = false; if (ttsTimeoutRef.current) clearTimeout(ttsTimeoutRef.current); 
   }, []);
 
@@ -1222,8 +1566,12 @@ export default function App() {
   const triggerSendMessage = async (overrideText = null, isHidden = false) => {
     const targetText = overrideText !== null ? overrideText : (inputValue.trim() || '请查看此图片');
     if (!targetText && !selectedImage) return; 
-    if (!activeSessionId || isLoading) return;
+    // ✨ 加入底层并发锁，防止重复触发
+    if (!activeSessionId || isLoadingRef.current) return;
     
+    isLoadingRef.current = true;
+    setIsLoading(true);
+
     const userMessage = { role: 'user', content: targetText, image: isHidden ? null : selectedImage };
     if (overrideText === null) { setInputValue(''); setSelectedImage(null); setSuggestedReplies([]); setVnPage(0); }
     clearTTSQueue();
@@ -1233,8 +1581,7 @@ export default function App() {
     const apiRequestHistory = isHidden ? [...currentHistory, userMessage] : [...currentHistory, userMessage];
 
     updateSessionMessages(activeSessionId, [...uiMessages, { role: 'assistant', content: '', isStreaming: settings.enableStreaming }], (uiMessages.length === 0 && overrideText === null) ? userMessage.content.slice(0, 15) : undefined);
-    setIsLoading(true);
-
+    
     try {
       const fetchUrl = buildProxyUrl(`${getFormatBaseUrl()}/v1/chat/completions`);
       const langMap = { 'zh': '中文', 'ja': '日文', 'en': '英文', 'ko': '韩文' }; const dispLangStr = langMap[settings.displayLanguage] || settings.displayLanguage; const voiceLangStr = langMap[settings.ttsLanguage] || settings.ttsLanguage;
@@ -1264,7 +1611,9 @@ export default function App() {
       if (!response.ok) throw new Error(`HTTP ${response.status} 错误`);
 
       if (settings.enableStreaming) {
-        let networkDone = false, networkError = null, fullContentBuffer = "", displayedContent = ""; let ttsBuffer = ""; let processedVoiceLength = 0; 
+        let networkDone = false, networkError = null, fullContentBuffer = "", displayedContent = ""; 
+        let ttsBuffer = ""; 
+        let processedVoiceLength = 0; 
         const effectiveSpeed = settings.workMode ? Math.max(5, settings.typingSpeed / 3) : settings.typingSpeed;
 
         const typeInterval = setInterval(() => {
@@ -1282,7 +1631,7 @@ export default function App() {
           if (displayedContent.length < targetDisplayText.length) {
             displayedContent += targetDisplayText[displayedContent.length]; updateSessionMessages(activeSessionId, [...uiMessages, { role: 'assistant', content: displayedContent, isStreaming: true }]);
           } else if (networkDone) {
-            clearInterval(typeInterval); setIsLoading(false);
+            clearInterval(typeInterval); isLoadingRef.current = false; setIsLoading(false);
             if (networkError) { showToast(`流式中断: ${networkError.message}`, "error"); updateSessionMessages(activeSessionId, [...uiMessages, { role: 'assistant', content: displayedContent + `\n[连接中断]`, isError: true }]); } 
             else {
               const finalMessages = [...uiMessages, { role: 'assistant', content: targetDisplayText.trim() || displayedContent }]; updateSessionMessages(activeSessionId, finalMessages); if (settings.enablePlotOptions) generatePlotOptions(finalMessages); 
@@ -1303,17 +1652,37 @@ export default function App() {
                   try { 
                     const data = JSON.parse(trimmedLine.slice(6)); 
                     if (data.choices?.[0]?.delta?.content) {
-                       const deltaText = data.choices[0].delta.content; fullContentBuffer += deltaText; 
+                       const deltaText = data.choices[0].delta.content; 
+                       fullContentBuffer += deltaText; 
                        
-                       if (fullContentBuffer.indexOf('<ADD_MEMO') === -1) {
-                           if (settings.enableTranslation) {
-                               const match = fullContentBuffer.match(/<VOICE>([\s\S]*?)(?:<\/VOICE>|$)/i);
-                               if (match) { const currentVoiceText = match[1]; const newVoiceChunk = currentVoiceText.slice(processedVoiceLength); ttsBuffer += newVoiceChunk; processedVoiceLength = currentVoiceText.length; } else if (fullContentBuffer.length > 30 && !/<VOICE>/i.test(fullContentBuffer) && !/<TEXT>/i.test(fullContentBuffer)) { ttsBuffer += deltaText; }
-                           } else { ttsBuffer += deltaText; }
-                           let matchPunc;
-                           while ((matchPunc = ttsBuffer.match(/^([\s\S]*?[。！？\.\!\?\n，,、]+)/))) {
-                               const chunk = matchPunc[1]; if (chunk.trim()) enqueueTTS(chunk.trim()); ttsBuffer = ttsBuffer.slice(chunk.length);
+                       // ✨ 核心修复：彻底将 TTS 切片解析逻辑与 <ADD_MEMO> 隔离
+                       const currentMemoIdx = fullContentBuffer.indexOf('<ADD_MEMO');
+                       const cleanBuffer = currentMemoIdx !== -1 ? fullContentBuffer.substring(0, currentMemoIdx) : fullContentBuffer;
+
+                       if (settings.enableTranslation) {
+                           const match = cleanBuffer.match(/<VOICE>([\s\S]*?)(?:<\/VOICE>|$)/i);
+                           if (match) { 
+                               const currentVoiceText = match[1]; 
+                               const newVoiceChunk = currentVoiceText.slice(processedVoiceLength); 
+                               ttsBuffer += newVoiceChunk; 
+                               processedVoiceLength = currentVoiceText.length; 
+                           } else if (cleanBuffer.length > 30 && !/<VOICE>/i.test(cleanBuffer) && !/<TEXT>/i.test(cleanBuffer)) { 
+                               const newChunk = cleanBuffer.slice(processedVoiceLength);
+                               ttsBuffer += newChunk;
+                               processedVoiceLength = cleanBuffer.length;
                            }
+                       } else { 
+                           const newChunk = cleanBuffer.slice(processedVoiceLength);
+                           ttsBuffer += newChunk;
+                           processedVoiceLength = cleanBuffer.length;
+                       }
+                       
+                       const splitRegex = settings.ttsFastMode ? /^([\s\S]*?[。！？\.\!\?\n，,、~～]+)/ : /^([\s\S]*?[。！？\.\!\?\n]+)/;
+                       let matchPunc;
+                       while ((matchPunc = ttsBuffer.match(splitRegex))) {
+                           const chunk = matchPunc[1]; 
+                           if (chunk.trim()) enqueueTTS(chunk.trim()); 
+                           ttsBuffer = ttsBuffer.slice(chunk.length);
                        }
                     }
                   } catch (e) {}
@@ -1363,13 +1732,17 @@ export default function App() {
         let displayContent = assistantContent; let voiceContent = assistantContent;
         if (settings.enableTranslation) { displayContent = (assistantContent.match(/<TEXT>([\s\S]*?)(?:<\/TEXT>|$)/i)?.[1] || assistantContent).trim(); voiceContent = (assistantContent.match(/<VOICE>([\s\S]*?)(?:<\/VOICE>|$)/i)?.[1] || assistantContent).trim(); }
         const finalMessages = [...uiMessages, { role: 'assistant', content: displayContent }]; updateSessionMessages(activeSessionId, finalMessages); enqueueTTS(voiceContent); 
-        if (settings.enablePlotOptions) generatePlotOptions(finalMessages); setIsLoading(false);
+        if (settings.enablePlotOptions) generatePlotOptions(finalMessages); isLoadingRef.current = false; setIsLoading(false);
         if (settings.enableMemory && finalMessages.length >= settings.memoryInterval) { triggerMemoryCompression(activeSessionId, finalMessages, activeSession?.memorySummary); }
         resetProactiveTimer();
       }
-    } catch (error) { showToast(`发送失败: ${error.message}`, "error"); updateSessionMessages(activeSessionId, [...uiMessages, { role: 'assistant', content: `[系统错误]: ${error.message}`, isError: true }]); setIsLoading(false); }
+    } catch (error) { 
+        showToast(`发送失败: ${error.message}`, "error"); 
+        updateSessionMessages(activeSessionId, [...uiMessages, { role: 'assistant', content: `[系统错误]: ${error.message}`, isError: true }]); 
+        isLoadingRef.current = false; 
+        setIsLoading(false); 
+    }
   };
-
   const handleSendMessage = () => triggerSendMessage();
 
   const updateSessionMessages = (id, newMessages, newTitle) => {
@@ -1420,7 +1793,15 @@ export default function App() {
     };
     window.addEventListener('keydown', handleGlobalKeyDown); return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, [confirmDialog, editingSlotId, isBgMenuOpen, isExpressionMenuOpen, isModelMenuOpen, visualAdjustMode, isMemoOpen, isSettingsOpen, isSaveLoadUIOpen, isLogOpen, appMode]);
-
+// ✨ 核心大迁徙：在数据未从黑盒中完全取出前，强行锁死渲染，防止白板空数据误杀
+  if (isCoreLoading) {
+    return (
+      <div className="fixed inset-0 bg-[#2c2b29] flex flex-col items-center justify-center text-[#e6d5b8] z-50">
+        <div className="w-12 h-12 border-4 border-[#ba3f42] border-t-transparent rounded-full animate-spin mb-4"></div>
+        <h2 className="text-xl font-bold tracking-widest">正在潜入底层数据库唤醒记忆...</h2>
+      </div>
+    );
+  }
   return (
     <div className="relative h-screen w-full bg-slate-900 overflow-hidden font-sans select-none" onClick={() => { setIsBgMenuOpen(false); setIsExpressionMenuOpen(false); setIsModelMenuOpen(false); }}>
       <style dangerouslySetInnerHTML={{__html: `.hide-scrollbar::-webkit-scrollbar { display: none; } .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; } .text-outline-blue { text-shadow: -1px -1px 0 #1e3a8a, 1px -1px 0 #1e3a8a, -1px 1px 0 #1e3a8a, 1px 1px 0 #1e3a8a; } .light-scrollbar::-webkit-scrollbar { width: 8px; } .light-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.05); border-radius: 4px;} .light-scrollbar::-webkit-scrollbar-thumb { background: #d9c5b2; border-radius: 4px; } .light-scrollbar::-webkit-scrollbar-thumb:hover { background: #ba3f42; } .clip-polygon { clip-path: polygon(0 0, 100% 0, 85% 100%, 0% 100%); }`}} />
@@ -1478,7 +1859,12 @@ export default function App() {
 
       <div className={`absolute top-4 right-6 z-[9000] transition-opacity duration-1000 ${bgmToast.visible ? 'opacity-100' : 'opacity-0'} pointer-events-none`}><span className="text-[10px] text-white/40 bg-black/20 px-3 py-1 rounded-full backdrop-blur-sm tracking-wider">♪ {bgmToast.name}</span></div>
 
-      <div className="absolute inset-0 bg-cover bg-center z-0 transition-all duration-1000" style={{ backgroundImage: activeBgUrl ? `url(${activeBgUrl})` : 'none', backgroundColor: activeBgUrl ? 'transparent' : '#1e1b4b' }}>
+      {/* ✨ 背景图层，包含 Title OffsetX 和 OffsetY 支持 */}
+      <div className="absolute inset-0 bg-cover z-0 transition-all duration-1000" style={{ 
+          backgroundImage: activeBgUrl ? `url(${activeBgUrl})` : 'none', 
+          backgroundColor: activeBgUrl ? 'transparent' : '#1e1b4b',
+          backgroundPosition: (appMode === 'title' && localTitleBgImage) ? `calc(50% + ${settings.titleBgOffsetX || 0}px) calc(50% + ${settings.titleBgOffsetY || 0}px)` : 'center'
+        }}>
         {!activeBgUrl && <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,_rgba(255,255,255,0.1),_transparent_70%)]" />}
       </div>
 
@@ -1487,7 +1873,7 @@ export default function App() {
         <canvas ref={canvasRef} className="w-full h-full block pointer-events-none" />
       </div>
 
-      {/* ✨ 实时面部捕捉摄像头画中画 */}
+      {/* 实时面部捕捉摄像头画中画 */}
       <video 
         ref={videoRef} 
         className={`absolute top-6 left-6 z-50 rounded-xl shadow-[0_10px_30px_rgba(0,0,0,0.5)] border-2 border-white/20 object-cover backdrop-blur-sm pointer-events-none transition-all duration-300 ${settings.enableFaceTracking && settings.enableCameraPreview ? 'w-48 h-36 opacity-80' : 'w-0 h-0 opacity-0'}`} 
@@ -1519,6 +1905,8 @@ export default function App() {
            )}
            {visualAdjustMode === 'dialog' && (
               <div className="space-y-5">
+                {/* ✨ 新增：快捷预览面板里的文本行距滑块 */}
+                <SettingSlider label="文本行距" value={settings.dialogLineHeight || 1.8} min={1.0} max={3.0} step={0.1} suffix="倍" onChange={v => setSettings({...settings, dialogLineHeight: v})} />
                 <SettingSlider label="对话框垂直偏移" value={settings.dialogPositionY} min={0} max={800} step={10} suffix="px" onChange={v => setSettings({...settings, dialogPositionY: v})} />
                 <SettingSlider label="对话框不透明度" value={settings.dialogOpacity} min={0} max={1} step={0.05} suffix="" onChange={v => setSettings({...settings, dialogOpacity: v})} />
                 <div className="flex flex-col gap-2 w-full pt-2 border-t border-dashed border-[#e6d5b8]"><label className="text-[#ba3f42] font-bold flex items-center gap-1"><span className="text-sm">✱</span> 窗口背景主题色</label><div className="flex items-center gap-3"><input type="color" value={settings.dialogThemeColor} onChange={e => setSettings({...settings, dialogThemeColor: e.target.value})} className="h-10 w-full rounded cursor-pointer bg-white border border-[#d9c5b2] p-0.5 shadow-inner" /></div></div>
@@ -1540,7 +1928,39 @@ export default function App() {
               </div>
             </div>
           </div>
-          <div className="absolute bottom-6 right-8 text-white/60 font-bold text-sm drop-shadow-md pointer-events-none">v1.6.0</div>
+          <div className="absolute bottom-6 right-8 text-white/60 font-bold text-sm drop-shadow-md pointer-events-none">v3.14.1重构-插件端</div>
+        </div>
+      )}
+
+      {appMode === 'title' && settings.showTitleBgmPlayer && (
+        <div 
+           className="absolute z-[8500] bg-black/40 backdrop-blur-xl border border-white/20 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.5)] flex flex-col p-4 w-72 pointer-events-auto transition-transform duration-75"
+           style={{ left: '2rem', bottom: '2rem', transform: `translate(${bgmOffset.x}px, ${bgmOffset.y}px)` }}
+        >
+           <div 
+             className="flex justify-center items-center mb-3 cursor-grab active:cursor-grabbing opacity-50 hover:opacity-100 transition-opacity"
+             onMouseDown={handleBgmPointerDown} onTouchStart={handleBgmPointerDown}
+           >
+             <GripHorizontal size={18} className="text-white" />
+           </div>
+           <div className="text-white text-sm font-bold truncate mb-4 text-center tracking-wider drop-shadow-md px-2">
+             {bgmList.length > 0 ? (bgmList[currentBgmIndex]?.name || '加载中...') : '暂无背景音乐'}
+           </div>
+           <div className="flex justify-between items-center px-3">
+             <button onClick={toggleBgmMode} className="text-white/60 hover:text-white transition-colors" title="播放模式 (顺序/随机/单曲循环)">
+               {settings.bgmMode === 'sequential' && <Repeat size={18} />}
+               {settings.bgmMode === 'random' && <Shuffle size={18} />}
+               {settings.bgmMode === 'loop' && <Repeat1 size={18} />}
+             </button>
+             <div className="flex items-center gap-4">
+               <button onClick={handlePrevBgm} className="text-white/80 hover:text-white transition-colors"><SkipBack size={20} /></button>
+               <button onClick={toggleBgm} className="bg-white text-black p-2.5 rounded-full hover:scale-105 transition-all shadow-md">
+                 {isBgmPlaying ? <Pause size={18} fill="currentColor"/> : <Play size={18} fill="currentColor"/>}
+               </button>
+               <button onClick={handleNextBgm} className="text-white/80 hover:text-white transition-colors"><SkipForward size={20} /></button>
+             </div>
+             <button onClick={() => setSettings({...settings, showTitleBgmPlayer: false})} className="text-white/30 hover:text-red-400 transition-colors" title="关闭播放器 (可在设置中恢复)"><X size={18} /></button>
+           </div>
         </div>
       )}
 
@@ -1559,13 +1979,14 @@ export default function App() {
 
           <div className="absolute left-1/2 -translate-x-1/2 w-[94%] max-w-5xl z-20 pointer-events-none flex flex-col transition-all duration-300" style={{ bottom: `calc(1.5rem - ${settings.dialogPositionY}px)` }}>
             <div className={`transition-opacity duration-300 ${latestMessage ? 'opacity-100' : 'opacity-0'}`}>
-              <div className={`px-8 py-1 rounded-t-lg w-fit text-xl font-bold tracking-widest text-white backdrop-blur-md pointer-events-auto transition-colors duration-300`} style={{ backgroundColor: latestMessage?.role === 'user' ? hexToRgba('#064e3b', settings.dialogOpacity) : hexToRgba('#312e81', settings.dialogOpacity), borderLeft: `4px solid rgba(${latestMessage?.role === 'user' ? '52, 211, 153' : '129, 140, 248'}, ${settings.dialogOpacity > 0 ? 1 : 0})` }}>
+              <div className={`px-8 py-1 rounded-t-lg w-fit text-xl font-bold tracking-widest text-white ${settings.dialogOpacity > 0 ? 'backdrop-blur-md' : ''} pointer-events-auto transition-colors duration-300`} style={{ backgroundColor: latestMessage?.role === 'user' ? hexToRgba('#064e3b', settings.dialogOpacity) : hexToRgba('#312e81', settings.dialogOpacity), borderLeft: `4px solid rgba(${latestMessage?.role === 'user' ? '52, 211, 153' : '129, 140, 248'}, ${settings.dialogOpacity > 0 ? 1 : 0})` }}>
                 {latestMessage?.role === 'user' ? settings.userName : settings.aiName}
               </div>
             </div>
 
-            <div className={`rounded-b-xl rounded-tr-xl backdrop-blur-sm relative flex flex-col pointer-events-auto transition-all duration-300 ${hasNextPage ? 'cursor-pointer' : ''}`} style={{ backgroundColor: hexToRgba(settings.dialogThemeColor, settings.dialogOpacity), borderColor: `rgba(255, 255, 255, ${settings.dialogOpacity * 0.2})`, borderWidth: settings.dialogOpacity > 0 ? '1px' : '0px', boxShadow: settings.dialogOpacity > 0.1 ? `0 8px 32px rgba(0,0,0,${settings.dialogOpacity * 0.5})` : 'none' }} onClick={(e) => { e.stopPropagation(); handleDialogClick(); }} onWheel={handleWheel}>
-              <div ref={vnTextContainerRef} style={{ color: settings.dialogTextColor, fontFamily: settings.dialogFontFamily }} className="p-8 pb-4 text-xl md:text-2xl tracking-widest leading-relaxed min-h-[140px] max-h-[30vh] overflow-y-auto scroll-smooth relative pointer-events-auto select-text cursor-text">
+           <div className={`rounded-b-xl rounded-tr-xl ${settings.dialogOpacity > 0 ? 'backdrop-blur-sm' : ''} relative flex flex-col pointer-events-auto transition-all duration-300 ${hasNextPage ? 'cursor-pointer' : ''}`} style={{ backgroundColor: hexToRgba(settings.dialogThemeColor, settings.dialogOpacity), borderColor: `rgba(255, 255, 255, ${settings.dialogOpacity * 0.2})`, borderWidth: settings.dialogOpacity > 0 ? '1px' : '0px', boxShadow: settings.dialogOpacity > 0.1 ? `0 8px 32px rgba(0,0,0,${settings.dialogOpacity * 0.5})` : 'none' }} onClick={(e) => { e.stopPropagation(); handleDialogClick(); }} onWheel={handleWheel}>
+              {/* ✨ 新增：将 lineHeight: settings.dialogLineHeight 应用到 style 中，并移除了原版写死的 leading-relaxed 以防样式冲突 */}
+              <div ref={vnTextContainerRef} style={{ color: settings.dialogTextColor, fontFamily: settings.dialogFontFamily, lineHeight: settings.dialogLineHeight || 1.8 }} className="p-8 pb-4 text-xl md:text-2xl tracking-widest min-h-[140px] max-h-[30vh] overflow-y-auto scroll-smooth relative pointer-events-auto select-text cursor-text">
                 {latestMessage 
                   ? <span className={`${latestMessage.isError ? 'text-red-400' : ''}`}>
                       <div className="whitespace-pre-wrap">{currentDisplay}</div>
@@ -1590,7 +2011,7 @@ export default function App() {
             </div>
 
             <div className="w-full flex justify-end mt-2 pointer-events-none">
-              <div className="flex flex-wrap justify-end items-center backdrop-blur-md rounded-xl px-4 py-2 gap-x-5 gap-y-2.5 text-indigo-200 text-sm font-bold shadow-lg transition-colors duration-300 pointer-events-auto" style={{ backgroundColor: hexToRgba(settings.dialogThemeColor, settings.dialogOpacity), border: settings.dialogOpacity > 0 ? `1px solid rgba(255, 255, 255, ${settings.dialogOpacity * 0.2})` : 'none' }} onClick={e => e.stopPropagation()}>
+              <div className={`flex flex-wrap justify-end items-center ${settings.dialogOpacity > 0 ? 'backdrop-blur-md' : ''} rounded-xl px-4 py-2 gap-x-5 gap-y-2.5 text-indigo-200 text-sm font-bold shadow-lg transition-colors duration-300 pointer-events-auto`} style={{ backgroundColor: hexToRgba(settings.dialogThemeColor, settings.dialogOpacity), border: settings.dialogOpacity > 0 ? `1px solid rgba(255, 255, 255, ${settings.dialogOpacity * 0.2})` : 'none' }} onClick={e => e.stopPropagation()}>
                 {/* 动态渲染快捷栏 (根据系统设置) */}
                 {settings.shortcuts?.save && <span className="cursor-pointer hover:text-white transition-colors shrink-0 whitespace-nowrap" onClick={handleAutoSaveSButton} title="一键保存当前进度并命名">S</span>}
                 {settings.shortcuts?.load && <span className="cursor-pointer hover:text-white transition-colors shrink-0 whitespace-nowrap" onClick={() => { setSlMode('load'); setIsSaveLoadUIOpen(true); }} title="打开存档/读档页面">L</span>}
@@ -1789,7 +2210,16 @@ export default function App() {
                   <span className="text-[10px] tracking-widest opacity-80 uppercase font-bold">System Config</span>
                </div>
                <div className="flex-1 flex overflow-x-auto hide-scrollbar bg-[#fdfaf5]/50 items-end px-4 gap-2">
-                  {[ { id: 'visual', icon: <ImageIcon size={18}/>, label: '视觉设定' }, { id: 'text', icon: <Type size={18}/>, label: '文本互动' }, { id: 'sound', icon: <Volume2 size={18}/>, label: '声音设定' }, { id: 'character', icon: <MessageSquare size={18}/>, label: '剧本角色' }, { id: 'api', icon: <ServerCrash size={18}/>, label: '模型接口' }, { id: 'data', icon: <Database size={18}/>, label: '数据管理' } ].map(tab => (
+                  {[ 
+                    { id: 'visual', icon: <ImageIcon size={18}/>, label: '视觉设定' }, 
+                    { id: 'text', icon: <Type size={18}/>, label: '文本互动' }, 
+                    { id: 'sound', icon: <Volume2 size={18}/>, label: '声音设定' }, 
+                    { id: 'character', icon: <MessageSquare size={18}/>, label: '剧本角色' }, 
+                    { id: 'api', icon: <ServerCrash size={18}/>, label: '模型接口' }, 
+                    { id: 'data', icon: <Database size={18}/>, label: '数据管理' },
+                    { id: 'mods', icon: <Puzzle size={18}/>, label: '插件模组' },
+                    { id: 'about', icon: <Info size={18}/>, label: '关于系统' }
+                  ].map(tab => (
                     <button key={tab.id} onClick={() => setSettingsTab(tab.id)} className={`flex items-center gap-2 px-5 py-3 font-bold text-sm transition-all border-b-4 rounded-t-lg ${settingsTab === tab.id ? 'bg-white border-[#c44a4a] text-[#c44a4a] shadow-[0_-4px_10px_rgba(0,0,0,0.05)]' : 'border-transparent text-[#7a6b5d] hover:bg-[#e8decb]'}`}>
                       {tab.icon} {tab.label}
                     </button>
@@ -1830,16 +2260,27 @@ export default function App() {
                     </div>
                   </div>
                   
-                  {/* ✨ 新增的面部捕捉区域 */}
                   <SettingSectionTitle title="面部捕捉 (Face Tracking)" />
                   <div className="bg-white/60 p-6 rounded-xl border border-[#e6d5b8] shadow-sm grid grid-cols-1 md:grid-cols-2 gap-8 mb-6">
                       <div className="flex flex-col gap-3">
                           <SettingToggle label="开启摄像头实时面部捕捉" value={settings.enableFaceTracking} onChange={v => setSettings({...settings, enableFaceTracking: v})} />
                           <p className="text-xs text-[#7a6b5d] mt-2 leading-relaxed">基于 Mediapipe 驱动，面部动作将直接映射给当前 Live2D 模型。会自动切断内置的鼠标视线跟随以防鬼畜冲突。</p>
+                          <div className="mt-3 flex items-center justify-between border-t border-dashed border-[#e6d5b8] pt-4">
+                              <label className="text-sm font-bold text-[#ba3f42]">捕捉精度模式</label>
+                              <select value={settings.faceTrackingMode} onChange={e => setSettings({...settings, faceTrackingMode: e.target.value})} className="bg-[#fdfaf5] border border-[#d9c5b2] text-[#4a4036] font-bold text-xs rounded-md px-3 py-1.5 outline-none shadow-inner focus:border-[#ba3f42]">
+                                  <option value="full">全脸追踪 (头部+五官)</option>
+                                  <option value="mouthOnly">仅捕捉嘴巴 (极度防抖定点)</option>
+                              </select>
+                          </div>
                       </div>
                       <div className="flex flex-col gap-3 border-t md:border-t-0 md:border-l border-dashed border-[#e6d5b8] pt-6 md:pt-0 md:pl-6">
                           <SettingToggle label="显示摄像头画中画预览" value={settings.enableCameraPreview} onChange={v => setSettings({...settings, enableCameraPreview: v})} />
                           <p className="text-xs text-[#7a6b5d] mt-2 leading-relaxed">在左上角实时显示摄像头回显画面，以便您确认光线和追踪效果。</p>
+                          <div className="mt-3 pt-4 border-t border-dashed border-[#e6d5b8]">
+                              <button onClick={handleResetFocus} className="w-full px-4 py-2 bg-[#fdfaf5] hover:bg-[#efe6d5] border border-[#d9c5b2] text-[#4a4036] font-bold text-sm rounded-lg transition-colors shadow-sm flex items-center justify-center gap-2">
+                                  <RefreshCw size={14} className="text-[#ba3f42]"/> 强制复位视线与头部
+                              </button>
+                          </div>
                       </div>
                   </div>
 
@@ -1871,7 +2312,15 @@ export default function App() {
                       <p className="text-xs text-[#7a6b5d] mb-4">设置启动软件时，主标题画面的专属背景图。</p>
                       <div className="flex flex-col gap-3">
                         <input type="file" accept="image/*" onChange={handleTitleBgUpload} className="block w-full text-sm text-[#7a6b5d] file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-bold file:bg-[#4fa0d8] file:text-white hover:file:bg-[#5db4f0] cursor-pointer"/>
-                        {localTitleBgImage && <button onClick={clearTitleBgImage} className="w-max px-4 py-1.5 bg-[#f5e6e6] hover:bg-[#eabfbf] text-[#ba3f42] rounded-full text-xs font-bold transition-colors shadow-sm">清除标题背景</button>}
+                        
+                        {/* ✨ 新增主标题背景偏移调整 */}
+                        {localTitleBgImage && (
+                          <div className="mt-4 border-t border-dashed border-[#e6d5b8] pt-4 space-y-4">
+                            <SettingSlider label="主标题背景水平偏移 (X)" value={settings.titleBgOffsetX} min={-1000} max={1000} step={10} suffix="px" onChange={v => setSettings({...settings, titleBgOffsetX: v})} />
+                            <SettingSlider label="主标题背景垂直偏移 (Y)" value={settings.titleBgOffsetY} min={-1000} max={1000} step={10} suffix="px" onChange={v => setSettings({...settings, titleBgOffsetY: v})} />
+                            <button onClick={clearTitleBgImage} className="w-max px-4 py-1.5 bg-[#f5e6e6] hover:bg-[#eabfbf] text-[#ba3f42] rounded-full text-xs font-bold transition-colors shadow-sm">清除标题背景</button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1947,7 +2396,6 @@ export default function App() {
               {settingsTab === 'text' && (
                 <div className="space-y-8 animate-fade-in">
                   
-                  {/* ✨ 新增：快捷栏显示管理 */}
                   <SettingSectionTitle title="快捷栏显示管理 (界面右下角)" />
                   <div className="bg-white/60 p-5 rounded-xl border border-[#e6d5b8] shadow-sm">
                      <p className="text-xs text-[#7a6b5d] mb-4">根据您的需求或屏幕大小，自由开启或隐藏游戏界面右下角的快捷按钮。隐藏不需要的按钮可以让沉浸感更强。</p>
@@ -1988,6 +2436,13 @@ export default function App() {
                   <div className="bg-white/60 p-6 rounded-xl border border-[#e6d5b8] shadow-sm grid grid-cols-1 md:grid-cols-2 gap-8">
                     <SettingSlider label="主对话框不透明度" value={settings.dialogOpacity} min={0} max={1} step={0.05} suffix="" onChange={v => setSettings({...settings, dialogOpacity: v})} />
                     <SettingSlider label="系统面板不透明度" value={settings.settingsOpacity} min={0.2} max={1} step={0.05} suffix="" onChange={v => setSettings({...settings, settingsOpacity: v})} />
+                    
+                    {/* ✨ 新增：文本行距独立滑块 */}
+                    <div className="md:col-span-2 pt-2 border-t border-dashed border-[#e6d5b8]">
+                      <SettingSlider label="文本排版行距 (Line Height)" value={settings.dialogLineHeight || 1.8} min={1.0} max={3.0} step={0.1} suffix="倍" onChange={v => setSettings({...settings, dialogLineHeight: v})} />
+                      <p className="text-xs text-[#7a6b5d] mt-2">控制每行文字之间的间距。较大的行距会带来更舒适的视觉小说阅读体验。</p>
+                    </div>
+
                     <div className="md:col-span-2 pt-2 border-t border-dashed border-[#e6d5b8]">
                       <SettingSlider label="对话框/快捷栏 垂直位置偏移" value={settings.dialogPositionY} min={0} max={800} step={10} suffix="px" onChange={v => setSettings({...settings, dialogPositionY: v})} />
                       <p className="text-xs text-[#7a6b5d] mt-2">调整高度可避免文本框遮挡Live2D模型的重要部位。</p>
@@ -2034,12 +2489,25 @@ export default function App() {
                           </div>
                         )}
                       </div>
-                      <SettingToggle label="启用 Live2D 鼠标点击交互" value={settings.enableClickExpression} onChange={v => setSettings({...settings, enableClickExpression: v})} />
+                     <SettingToggle label="启用 Live2D 鼠标点击交互" value={settings.enableClickExpression} onChange={v => setSettings({...settings, enableClickExpression: v})} />
                       <div className="md:col-span-2 flex justify-between gap-4 border-t border-dashed border-[#e6d5b8] pt-6">
                         <SettingToggle label="文字流式打字机效果" value={settings.enableStreaming} onChange={v => setSettings({...settings, enableStreaming: v})} />
                         {settings.enableStreaming && <div className="flex-1 max-w-sm"><SettingSlider label="打字速度" value={settings.typingSpeed} min={10} max={150} step={10} suffix="ms" onChange={v => setSettings({...settings, typingSpeed: v})} /></div>}
                       </div>
                       <div className="md:col-span-2 pt-2"><SettingSlider label="长段落文本截断分页 (每次显示行数)" value={settings.vnLinesPerPage} min={2} max={12} step={1} suffix="行" onChange={v => setSettings({...settings, vnLinesPerPage: v})} /></div>
+                      
+                      {/* ✨ 新增：排版与打字机效果实时预览框 */}
+                      <div className="md:col-span-2 pt-6 border-t border-dashed border-[#e6d5b8]">
+                         <label className="block text-sm font-bold text-[#ba3f42] mb-3 flex items-center gap-2"><Eye size={16}/> 动态排版与打字机效果预览</label>
+                         <div className="p-6 rounded-xl bg-black/80 shadow-inner min-h-[160px] border-2 border-white/10 flex items-start overflow-hidden">
+                            <TypewriterPreview 
+                               speed={settings.workMode ? Math.max(5, settings.typingSpeed / 3) : settings.typingSpeed} 
+                               text={"初次见面，请多关照！\n这将会是您在游戏内看到的实际文字排版效果。\n您可以自由调节上方的「文本行距」和「打字速度」，\n来找到最适合您的阅读节奏哦~"} 
+                               textStyle={{ color: settings.dialogTextColor, fontFamily: settings.dialogFontFamily, lineHeight: settings.dialogLineHeight || 1.8, fontSize: '1.125rem', letterSpacing: '0.05em' }}
+                            />
+                         </div>
+                      </div>
+
                     </div>
                   </div>
                 </div>
@@ -2048,6 +2516,14 @@ export default function App() {
               {/* 3. 声音设定 Tab */}
               {settingsTab === 'sound' && (
                 <div className="space-y-8 animate-fade-in">
+                  
+                  <SettingSectionTitle title="主界面音乐组件设定" />
+                  <div className="bg-white/60 p-6 rounded-xl border border-[#e6d5b8] shadow-sm space-y-6">
+                    <SettingToggle label="在主界面显示音乐播放器 (可拖拽)" value={settings.showTitleBgmPlayer} onChange={v => setSettings({...settings, showTitleBgmPlayer: v})} />
+                    <p className="text-xs text-[#7a6b5d] mt-2 leading-relaxed">开启后，在游戏主标题界面的左下角会显示一个半透明的悬浮播放器组件。您可以在那里自由切歌、修改循环模式与拖拽移动它。</p>
+                  </div>
+                  <div className="border-b-2 border-dashed border-[#e6d5b8] my-6"></div>
+
                   <SettingSectionTitle title="音量与播放控制" />
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-white/60 p-6 rounded-xl border border-[#e6d5b8] shadow-sm">
                     <SettingSlider label="背景音乐音量 (BGM)" value={settings.bgmVolume} min={0} max={1} step={0.05} suffix="" onChange={v => setSettings({...settings, bgmVolume: v})} />
@@ -2087,7 +2563,7 @@ export default function App() {
                         </select>
                       </div>
                       <div className="md:col-span-2">
-                        <label className="block text-sm font-bold text-[#ba3f42] mb-2"><span className="text-sm">✱</span> API URL 模板 (已支持分句流式排队输出)</label>
+                        <label className="block text-sm font-bold text-[#ba3f42] mb-2"><span className="text-sm">✱</span> API URL 模板 (已支持并发流式切片推理)</label>
                         <input type="text" value={settings.ttsUrlTemplate} onChange={e => setSettings({...settings, ttsUrlTemplate: e.target.value})} className="w-full bg-white border border-[#d9c5b2] text-[#4a4036] rounded-md px-3 py-2 text-sm outline-none shadow-inner focus:border-[#ba3f42]" />
                         <div className="bg-[#fdfaf5] p-3 mt-2 rounded border border-[#e6d5b8] shadow-inner">
                           <p className="text-[11px] text-[#7a6b5d] font-bold mb-1"><AlertCircle size={12} className="inline mr-1 text-[#ba3f42]"/> 若报错 404 或 500 (text_lang为空)，请确保模板如下：</p>
@@ -2097,13 +2573,34 @@ export default function App() {
                       <div className="md:col-span-3 border-t border-dashed border-[#e6d5b8] pt-4">
                         <SettingSlider label="流式分句停顿时间 (句与句之间的间隔)" value={settings.ttsSentencePause} min={0} max={3000} step={10} suffix="ms" onChange={v => setSettings({...settings, ttsSentencePause: v})} />
                       </div>
+                      <div className="md:col-span-3 pt-2">
+                         <SettingToggle label="🚀 极速短标点切句预加载 (后台高并发消除延迟)" value={settings.ttsFastMode} onChange={v => setSettings({...settings, ttsFastMode: v})} />
+                         <p className="text-xs text-[#7a6b5d] mt-2 leading-relaxed bg-[#fdfaf5] p-3 rounded-lg border border-[#e6d5b8]"><strong className="text-emerald-600">针对 GPT-SoVITS 的终极优化：</strong>开启后，大模型输出只要遇到逗号(,)或顿号(、)就会立刻放入后台并发 Fetch 队列进行推理预加载。即使上一句仍在播放，下一句也会在后台被GPU火速算出并存入内存，完全消除排队延迟。若您希望保持长段落推理的情感连贯，可关闭此项。</p>
+                      </div>
                       <div className="md:col-span-3 border-t border-dashed border-[#e6d5b8] pt-6">
-                         <h4 className="text-sm font-bold text-[#4a4036] mb-4 flex items-center gap-2"><Mic size={16} className="text-[#ba3f42]"/> 参考音频配置 (克隆/指定音色必填)</h4>
-                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                             <div className="md:col-span-2"><label className="block text-xs text-[#7a6b5d] mb-1 font-bold">参考音频路径/URL</label><input type="text" value={settings.ttsRefAudio} onChange={e => setSettings({...settings, ttsRefAudio: e.target.value})} className="w-full bg-white border border-[#d9c5b2] text-[#4a4036] rounded-md px-3 py-2 text-sm outline-none shadow-inner focus:border-[#ba3f42]" placeholder="如: D:\audio\ref.wav" /></div>
-                             <div><label className="block text-xs text-[#7a6b5d] mb-1 font-bold">参考音频语种</label><select value={settings.ttsRefLang} onChange={e => setSettings({...settings, ttsRefLang: e.target.value})} className="w-full bg-white border border-[#d9c5b2] text-[#4a4036] font-bold rounded-md px-3 py-2 outline-none shadow-inner focus:border-[#ba3f42]"><option value="zh">中文 (zh)</option><option value="ja">日文 (ja)</option><option value="en">英文 (en)</option><option value="ko">韩文 (ko)</option></select></div>
-                             <div className="md:col-span-3"><label className="block text-xs text-[#7a6b5d] mb-1 font-bold">参考音频文本</label><input type="text" value={settings.ttsRefText} onChange={e => setSettings({...settings, ttsRefText: e.target.value})} className="w-full bg-white border border-[#d9c5b2] text-[#4a4036] rounded-md px-3 py-2 text-sm outline-none shadow-inner focus:border-[#ba3f42]" placeholder="参考音频里说的话..." /></div>
+                         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
+                             <h4 className="text-sm font-bold text-[#4a4036] flex items-center gap-2"><Mic size={16} className="text-[#ba3f42]"/> 参考音频配置 (克隆/指定音色必填)</h4>
+                             {/* ✨ 手机端/云端模式开关 */}
+                             <SettingToggle label="📱 云端挂载模式 (手机端适配)" value={settings.ttsMobileMode} onChange={v => setSettings({...settings, ttsMobileMode: v})} />
                          </div>
+
+                         {!settings.ttsMobileMode ? (
+                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in">
+                                 <div className="md:col-span-2"><label className="block text-xs text-[#7a6b5d] mb-1 font-bold">参考音频路径/URL</label><input type="text" value={settings.ttsRefAudio} onChange={e => setSettings({...settings, ttsRefAudio: e.target.value})} className="w-full bg-white border border-[#d9c5b2] text-[#4a4036] rounded-md px-3 py-2 text-sm outline-none shadow-inner focus:border-[#ba3f42]" placeholder="如: D:\audio\ref.wav" /></div>
+                                 <div><label className="block text-xs text-[#7a6b5d] mb-1 font-bold">参考音频语种</label><select value={settings.ttsRefLang} onChange={e => setSettings({...settings, ttsRefLang: e.target.value})} className="w-full bg-white border border-[#d9c5b2] text-[#4a4036] font-bold rounded-md px-3 py-2 outline-none shadow-inner focus:border-[#ba3f42]"><option value="zh">中文 (zh)</option><option value="ja">日文 (ja)</option><option value="en">英文 (en)</option><option value="ko">韩文 (ko)</option></select></div>
+                                 <div className="md:col-span-3"><label className="block text-xs text-[#7a6b5d] mb-1 font-bold">参考音频文本</label><input type="text" value={settings.ttsRefText} onChange={e => setSettings({...settings, ttsRefText: e.target.value})} className="w-full bg-white border border-[#d9c5b2] text-[#4a4036] rounded-md px-3 py-2 text-sm outline-none shadow-inner focus:border-[#ba3f42]" placeholder="参考音频里说的话..." /></div>
+                             </div>
+                         ) : (
+                             <div className="bg-[#fdfaf5] p-5 rounded-xl border border-[#e6d5b8] shadow-inner flex items-start gap-4 animate-fade-in">
+                                 <div className="bg-[#8fbf8f]/20 p-2 rounded-lg text-[#7ebd7e] shrink-0"><CheckCircle size={24}/></div>
+                                 <div>
+                                    <h5 className="font-bold text-[#4a4036] text-sm mb-1">云端模式已开启：本地参考选项已隐藏</h5>
+                                    <p className="text-xs text-[#7a6b5d] leading-relaxed">
+                                        系统已剥离客户端的参考音频参数。现在无论在手机还是局域网设备上，系统都会自动使用 <code className="bg-white px-1 py-0.5 rounded text-[#ba3f42] border border-[#e6d5b8]">start.py</code> 服务端里默认配置的参考音色。
+                                    </p>
+                                 </div>
+                             </div>
+                         )}
                       </div>
                     </div>
                   </div>
@@ -2227,12 +2724,47 @@ export default function App() {
                   </div>
                   <div className="border-b-2 border-dashed border-[#e6d5b8] my-6"></div>
 
-                  <SettingSectionTitle title="全量数据备份与恢复" />
+                 {/* ✨ 智能隐藏：仅当探测到镜像分身插件正在运行时，才渲染单体管理面板 */}
+                  {isMirrorPluginLoaded && (
+                    <>
+                      <SettingSectionTitle title="当前系统镜像独立管理 (轻量级)" />
+                      <div className="bg-white/60 p-6 rounded-xl border border-[#e6d5b8] shadow-sm mb-6 animate-fade-in">
+                        <p className="text-sm text-[#7a6b5d] font-bold mb-6 leading-relaxed">
+                          仅对当前活跃的分身镜像（当前存档、专属媒体、聊天记录）进行独立操作。<br/>
+                          <span className="text-xs text-indigo-600">✨ 智能映射：您可以将某一个分身的独立备份包，无缝导入并覆盖到另一个全新的分身中！</span>
+                        </p>
+                        <div className="flex flex-col sm:flex-row gap-4 mb-4">
+                          <button onClick={handleExportSingleBackup} className="flex-1 py-3 bg-[#60a5fa] hover:bg-[#3b82f6] text-white font-bold rounded-xl flex justify-center items-center transition-colors shadow-md">
+                            <Download size={20} className="mr-2" /> 导出当前独立镜像
+                          </button>
+                          <label className="flex-1 py-3 bg-white hover:bg-[#f4ebdc] border border-[#d9c5b2] text-[#1e3a8a] font-bold rounded-xl flex justify-center items-center cursor-pointer transition-colors shadow-md">
+                            <Upload size={20} className="mr-2 text-[#60a5fa]" /> 导入并覆盖当前
+                            <input type="file" accept=".zip,application/zip,application/x-zip-compressed,application/octet-stream,multipart/x-zip,*/*" hidden onChange={handleSmartImportBackup} />
+                          </label>
+                        </div>
+                        <button onClick={handleClearCurrentMirror} className="w-full py-3 bg-transparent hover:bg-red-500/10 border-2 border-red-400 text-red-500 font-bold rounded-xl flex justify-center items-center transition-colors">
+                          <Trash2 size={20} className="mr-2" /> 格式化抹除当前镜像数据
+                        </button>
+                      </div>
+                    </>
+                  )}
+
+                  {/* ✨ 动态标题与文案：根据是否有分身系统来改变文案解释 */}
+                  <SettingSectionTitle title={isMirrorPluginLoaded ? "全局防丢备份 (终极全量 ZIP)" : "全量数据防丢备份 (完整 ZIP 封包)"} />
                   <div className="bg-white/60 p-6 rounded-xl border border-[#e6d5b8] shadow-sm">
-                    <p className="text-sm text-[#7a6b5d] font-bold mb-6 leading-relaxed">打包导出为一个 JSON 文件。安全起见，API 接口和密钥不会被包含在内。<br/><span className="text-xs text-amber-600">注：由于浏览器限制，Live2D 模型原文件无法自动导出，恢复数据后需重新导入一次模型。</span></p>
+                    <p className="text-sm text-[#7a6b5d] font-bold mb-6 leading-relaxed">
+                      {isMirrorPluginLoaded 
+                        ? "将引擎底层的所有的多开分身、插件模组、Live2D模型、动态视频等一切内容，打包为一个史诗级的终极备份卷。" 
+                        : "将所有设置、历史剧情、插件、Live2D模型、背景图及音乐打包为一个 ZIP 文件。已解除后缀拦截，深度兼容安卓套壳环境。"}
+                    </p>
                     <div className="flex flex-col sm:flex-row gap-6">
-                      <button onClick={handleExportBackup} className="flex-1 py-4 bg-[#8fbf8f] hover:bg-[#7ebd7e] text-white font-bold text-lg rounded-xl flex justify-center items-center transition-colors shadow-lg border-2 border-white/50"><Archive size={24} className="mr-2" /> 导出全量备份 (.json)</button>
-                      <label className="flex-1 py-4 bg-white hover:bg-[#f4ebdc] border-2 border-[#d9c5b2] text-[#4a4036] font-bold text-lg rounded-xl flex justify-center items-center cursor-pointer transition-colors shadow-md"><Upload size={24} className="mr-2 text-[#ba3f42]" /> 导入备份并恢复<input type="file" accept=".json" hidden onChange={handleImportBackup} /></label>
+                      <button onClick={handleExportFullBackup} className="flex-1 py-4 bg-[#8fbf8f] hover:bg-[#7ebd7e] text-white font-bold text-lg rounded-xl flex justify-center items-center transition-colors shadow-lg border-2 border-white/50">
+                        <Archive size={24} className="mr-2" /> {isMirrorPluginLoaded ? "导出全局数据卷 (.zip)" : "导出完整数据卷 (.zip)"}
+                      </button>
+                      <label className="flex-1 py-4 bg-white hover:bg-[#f4ebdc] border-2 border-[#d9c5b2] text-[#4a4036] font-bold text-lg rounded-xl flex justify-center items-center cursor-pointer transition-colors shadow-md">
+                        <Database size={24} className="mr-2 text-[#ba3f42]" /> {isMirrorPluginLoaded ? "挂载全局卷并覆盖" : "挂载数据卷并恢复"}
+                        <input type="file" accept=".zip,application/zip,application/x-zip-compressed,application/octet-stream,multipart/x-zip,*/*" hidden onChange={handleSmartImportBackup} />
+                      </label>
                     </div>
                   </div>
 
@@ -2244,15 +2776,118 @@ export default function App() {
                   </div>
                 </div>
               )}
+              
+             {/* ✨ 7. 插件模组 Tab (新增) */}
+              {settingsTab === 'mods' && (
+                  <div className="space-y-8 animate-fade-in text-[#4a4036]">
+                      <SettingSectionTitle title="第三方插件模组 (Mods) 管理" />
+                      <div className="bg-white/60 p-6 rounded-xl border border-[#e6d5b8] shadow-sm">
+                          <div className="flex justify-between items-center mb-6">
+                              <p className="text-sm text-[#7a6b5d] font-bold">导入 `.js` 插件以动态扩展核心功能或定制界面。<br/><span className="text-amber-600">⚠️ 提示：若安卓系统中文件变灰无法选择，请将其改名为 `.txt` 后缀再导入即可！</span></p>
+                              <label className="px-4 py-2 bg-[#8fbf8f] hover:bg-[#7ebd7e] text-white font-bold text-sm rounded-full flex items-center cursor-pointer transition-colors shadow-md shrink-0">
+                                  <Puzzle size={16} className="mr-1.5" /> 导入 JS 插件
+                                  {/* 核心修复：将 accept 放宽范围，彻底绕开 WebView 拦截限制 */}
+                                  <input type="file" accept=".js,application/javascript,text/javascript,text/plain,*/*" hidden onChange={handleModUpload} />
+                              </label>
+                          </div>
+                          
+                          {modsList.length > 0 ? (
+                              <div className="space-y-3">
+                                  {modsList.map(mod => (
+                                      <div key={mod.id} className={`flex items-center justify-between p-4 rounded-xl border-2 transition-colors shadow-sm ${mod.enabled ? 'bg-white border-[#8fbf8f]/50' : 'bg-[#e8decb]/30 border-transparent opacity-80'}`}>
+                                          <div className="flex items-center gap-3">
+                                              <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold shadow-inner ${mod.enabled ? 'bg-[#8fbf8f]' : 'bg-[#a89578]'}`}><Shield size={20}/></div>
+                                              <div>
+                                                  <h5 className="font-bold text-base text-[#ba3f42]">{mod.name}</h5>
+                                                  <p className="text-[10px] text-[#7a6b5d] uppercase tracking-wider mt-0.5">Installed: {mod.installDate}</p>
+                                              </div>
+                                          </div>
+                                          <div className="flex gap-2 shrink-0">
+                                              <button onClick={() => toggleModEnabled(mod.id, mod.enabled)} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-colors shadow-sm ${mod.enabled ? 'bg-[#e8decb] text-[#7a6b5d] hover:bg-[#d9c5b2]' : 'bg-[#4fa0d8] text-white hover:bg-[#5db4f0]'}`}>
+                                                  {mod.enabled ? '暂时停用' : '启用插件'}
+                                              </button>
+                                              <button onClick={() => { if(window.confirm('彻底卸载此插件？')) removeMod(mod.id); }} className="px-3 py-1.5 bg-red-100 text-red-500 hover:bg-red-500 hover:text-white rounded-full transition-colors shadow-sm">
+                                                  <Trash2 size={14}/>
+                                              </button>
+                                          </div>
+                                      </div>
+                                  ))}
+                              </div>
+                          ) : (
+                              <div className="text-center text-[#a89578] text-sm py-12 font-bold border-2 border-dashed border-[#e6d5b8] rounded-xl bg-white/40">
+                                  暂无任何第三方插件，系统正在以纯净原版运行。
+                              </div>
+                          )}
+                      </div>
+                  </div>
+              )}
+
+               {/* ✨ 新增: 关于 (About) Tab */}
+              {settingsTab === 'about' && (
+                <div className="space-y-6 md:space-y-8 animate-fade-in p-2 md:p-4">
+                  <h2 className="text-xl md:text-2xl font-black text-[#ba3f42] tracking-widest mb-6">关于 GWC</h2>
+                  
+                  <div className="bg-white rounded-2xl border border-[#e6d5b8] shadow-sm overflow-hidden p-6 md:p-8">
+                    
+                    {/* 开发者名单 */}
+                    <div className="mb-10">
+                      <h4 className="text-sm md:text-base font-bold text-[#ba3f42] mb-4 flex items-center gap-2">
+                        <User size={18} /> 开发者名单
+                      </h4>
+                      <div className="w-full text-xs md:text-sm text-[#4a4036]">
+                        <div className="flex bg-[#fdfaf5] p-3 rounded-t-lg font-bold text-[#7a6b5d] border-b border-[#e6d5b8]">
+                          <span className="w-12 md:w-16 text-center">序号</span>
+                          <span className="w-24 md:w-48 px-2 md:px-4">开发者名称</span>
+                          <span className="flex-1 text-right md:text-left">负责项目</span>
+                        </div>
+                        <div className="flex p-3 border-b border-dashed border-[#e6d5b8] items-center">
+                          <span className="w-12 md:w-16 text-center font-bold text-[#ba3f42]">01</span>
+                          <span className="w-24 md:w-48 px-2 md:px-4 font-bold text-[#4a4036]">【Qys】</span>
+                          <span className="flex-1 text-[#7a6b5d] text-right md:text-left">【核心程序 / UI设计】</span>
+                        </div>
+                        <div className="flex p-3 border-b border-dashed border-[#e6d5b8] items-center">
+                          <span className="w-12 md:w-16 text-center font-bold text-[#ba3f42]">02</span>
+                          <span className="w-24 md:w-48 px-2 md:px-4 font-bold text-[#4a4036]">【Qys】</span>
+                          <span className="flex-1 text-[#7a6b5d] text-right md:text-left">【Live2D 动效与面捕调试】</span>
+                        </div>
+                        <div className="flex p-3 items-center">
+                          <span className="w-12 md:w-16 text-center font-bold text-[#ba3f42]">03</span>
+                          <span className="w-24 md:w-48 px-2 md:px-4 font-bold text-[#4a4036]">【Gemini-3/3.1-Pro】</span>
+                          <span className="flex-1 text-[#7a6b5d] text-right md:text-left">【海量Bug修复】</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 特别鸣谢 */}
+                    <div>
+                      <h4 className="text-sm md:text-base font-bold text-[#ba3f42] mb-4 flex items-center gap-2">
+                        <Sparkles size={18} /> 特别鸣谢
+                      </h4>
+                      <div className="flex flex-wrap gap-3">
+                        <span className="px-4 py-2 bg-[#fdfaf5] border border-[#e6d5b8] rounded-lg text-xs md:text-sm font-bold text-[#7a6b5d] shadow-sm">Gemini提供的强力辅助</span>
+                        <span className="px-4 py-2 bg-[#fdfaf5] border border-[#e6d5b8] rounded-lg text-xs md:text-sm font-bold text-[#7a6b5d] shadow-sm">ATRI提供的灵感</span>
+                        <span className="px-4 py-2 bg-[#fdfaf5] border border-[#e6d5b8] rounded-lg text-xs md:text-sm font-bold text-[#7a6b5d] shadow-sm">GPT-SoVITS项目提供的TTS支持</span>
+                        <span className="px-4 py-2 bg-[#fdfaf5] border border-[#e6d5b8] rounded-lg text-xs md:text-sm font-bold text-[#7a6b5d] shadow-sm">前端开源社区的各类组件库</span>
+                      </div>
+                    </div>
+
+                    <div className="text-center pt-6 mt-4 border-t-2 border-dashed border-[#e6d5b8] text-xs text-[#a89578] font-bold tracking-widest leading-relaxed">
+                      GalGame Web Chat Engine v3.14.0<br/>
+                      Powered by React & Tailwind CSS
+                    </div>
+                  </div>
+
+                </div>
+              )}
 
             </div>
-            {/* Footer 区域 */}
-            <div className="h-16 bg-[#2c2b29] shrink-0 flex justify-between items-center px-8 border-t-[3px] border-[#ba3f42]">
-              <div className="text-white/30 text-[10px] font-black tracking-widest uppercase">GalGame Web Chat Settings</div>
-              <div className="flex gap-4">
-                <button onClick={handleReturnToTitle} className="bg-transparent hover:bg-white/10 text-white/80 border border-white/20 px-6 py-2 rounded-full font-bold text-sm transition-colors flex items-center gap-2"><ArrowLeft size={16}/> 返回标题画面</button>
-                <button onClick={handleExitGame} className="bg-transparent hover:bg-red-500/20 text-red-300 border border-red-500/30 px-6 py-2 rounded-full font-bold text-sm transition-colors flex items-center gap-2 mr-4"><LogOut size={16}/> 退出游戏</button>
-                <button onClick={() => setIsSettingsOpen(false)} className="bg-[#ba3f42] hover:bg-[#d64b4f] text-white px-10 py-2 rounded-full font-bold tracking-widest text-sm transition-all shadow-lg border border-[#e86b6e] hover:scale-105">保存并关闭</button>
+            {/* Footer 区域 移动端适配 */}
+            <div className="h-auto md:h-16 bg-[#2c2b29] shrink-0 flex flex-col md:flex-row justify-between items-center p-3 md:px-8 border-t-[3px] border-[#ba3f42] gap-3 md:gap-0">
+              <div className="hidden md:block text-white/30 text-[10px] font-black tracking-widest uppercase">GalGame Web Chat Settings</div>
+              <div className="flex flex-wrap justify-center gap-2 md:gap-4 w-full md:w-auto">
+                <button onClick={handleReturnToTitle} className="flex-1 md:flex-none justify-center bg-transparent hover:bg-white/10 text-white/80 border border-white/20 px-3 md:px-6 py-1.5 md:py-2 rounded-full font-bold text-xs md:text-sm transition-colors flex items-center gap-1.5"><ArrowLeft size={14}/> 主界面</button>
+                <button onClick={handleExitGame} className="flex-1 md:flex-none justify-center bg-transparent hover:bg-red-500/20 text-red-300 border border-red-500/30 px-3 md:px-6 py-1.5 md:py-2 rounded-full font-bold text-xs md:text-sm transition-colors flex items-center gap-1.5 md:mr-4"><LogOut size={14}/> 退出</button>
+                <button onClick={() => setIsSettingsOpen(false)} className="w-full md:w-auto bg-[#ba3f42] hover:bg-[#d64b4f] text-white px-6 md:px-10 py-2 md:py-2 rounded-full font-bold tracking-widest text-xs md:text-sm transition-all shadow-lg border border-[#e86b6e] hover:scale-105">保存并关闭</button>
               </div>
             </div>
           </div>
