@@ -2276,9 +2276,33 @@ export default function App() {
       </div>
     );
   }
-  return (
+ return (
     <div className="relative h-screen w-full bg-slate-900 overflow-hidden font-sans select-none" onClick={() => { setIsBgMenuOpen(false); setIsExpressionMenuOpen(false); setIsModelMenuOpen(false); }}>
-      <style dangerouslySetInnerHTML={{__html: `.hide-scrollbar::-webkit-scrollbar { display: none; } .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; } .text-outline-blue { text-shadow: -1px -1px 0 #1e3a8a, 1px -1px 0 #1e3a8a, -1px 1px 0 #1e3a8a, 1px 1px 0 #1e3a8a; } .light-scrollbar::-webkit-scrollbar { width: 8px; } .light-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.05); border-radius: 4px;} .light-scrollbar::-webkit-scrollbar-thumb { background: #d9c5b2; border-radius: 4px; } .light-scrollbar::-webkit-scrollbar-thumb:hover { background: #ba3f42; } .clip-polygon { clip-path: polygon(0 0, 100% 0, 85% 100%, 0% 100%); }`}} />
+      <style dangerouslySetInnerHTML={{__html: `.hide-scrollbar::-webkit-scrollbar { display: none; } .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; } .text-outline-blue { text-shadow: -1px -1px 0 #1e3a8a, 1px -1px 0 #1e3a8a, -1px 1px 0 #1e3a8a, 1px 1px 0 #1e3a8a; } .light-scrollbar::-webkit-scrollbar { width: 8px; } .light-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.05); border-radius: 4px;} .light-scrollbar::-webkit-scrollbar-thumb { background: #d9c5b2; border-radius: 4px; } .light-scrollbar::-webkit-scrollbar-thumb:hover { background: #ba3f42; } .clip-polygon { clip-path: polygon(0 0, 100% 0, 85% 100%, 0% 100%); }
+      
+      /* ✨ ATRI Theme Native Core Styles */
+      .atri-header::after { content: 'HELP Window'; position: absolute; right: 120px; top: 0px; width: 250px; height: 50px; background: rgba(255, 255, 255, 0.2); border-left: 1px solid rgba(255, 255, 255, 0.6); border-right: 1px solid rgba(255, 255, 255, 0.6); border-bottom: 1px solid rgba(255, 255, 255, 0.6); padding: 5px 15px; font-size: 0.75rem; color: white; font-weight: bold; pointer-events: none; background-image: linear-gradient(rgba(255,255,255,0.25) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.25) 1px, transparent 1px); background-size: 15px 15px; z-index: 0; }
+      @media screen and (max-width: 800px) { .atri-header::after { display: none; } }
+      .atri-tab-btn::before { content: ''; position: absolute; top: 0; bottom: 0; left: -8px; right: -8px; background: #74c1f0; transform: skewX(-25deg); z-index: -1; border-right: 2px solid rgba(255, 255, 255, 0.5); transition: all 0.2s ease; }
+      .atri-tab-btn.active-tab::before { background: white; border-right: none; }
+      .atri-container .bg-white\\/60 { background: rgba(255,255,255,0.4) !important; border: 1px solid rgba(255,255,255,0.6) !important; box-shadow: 0 4px 15px rgba(0,0,0,0.05) !important; }
+      .atri-container .text-\\[\\#4a4036\\] { color: #1e3a8a !important; }
+      .atri-container h3.text-\\[\\#ba3f42\\] { color: #1a5c9a !important; font-size: 1.15rem !important; position: relative !important; padding-left: 24px !important; }
+      .atri-container h3.text-\\[\\#ba3f42\\]::before { content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 8px; height: 8px; background-color: #60a5fa; box-shadow: 5px 5px 0 #3b82f6, 5px -5px 0 #93c5fd; }
+      .atri-container label.text-\\[\\#ba3f42\\] { color: #1a5c9a !important; font-weight: 900 !important; }
+      .atri-container label.text-\\[\\#ba3f42\\] span.text-sm { display: none !important; }
+      .atri-container .text-\\[\\#7a6b5d\\] { color: #475569 !important; }
+      .atri-container input[type="file"] { color: #1e3a8a !important; font-weight: bold !important; }
+      .atri-container input[type="file"]::file-selector-button { background-color: #5ab4ed !important; color: white !important; border: none !important; border-radius: 9999px !important; padding: 0.4rem 1.2rem !important; font-weight: bold !important; cursor: pointer !important; transition: all 0.2s !important; margin-right: 1rem !important; box-shadow: 0 2px 4px rgba(90, 180, 237, 0.3) !important; }
+      .atri-container input[type="file"]::file-selector-button:hover { background-color: #3ea3e6 !important; transform: translateY(-1px) !important; }
+      .atri-container .bg-white\\/60 button[class*="text-white"], .atri-container .bg-white\\/60 label[class*="text-white"], .atri-container .bg-white\\/60 button[class*="bg-\\[\\#"], .atri-container .bg-white\\/60 label[class*="bg-\\[\\#"] { background-color: #5ab4ed !important; color: white !important; border: none !important; box-shadow: 0 2px 6px rgba(90, 180, 237, 0.3) !important; }
+      .atri-container .bg-white\\/60 button[class*="text-white"]:hover, .atri-container .bg-white\\/60 label[class*="text-white"]:hover, .atri-container .bg-white\\/60 button[class*="bg-\\[\\#"]:hover, .atri-container .bg-white\\/60 label[class*="bg-\\[\\#"]:hover { background-color: #3ea3e6 !important; transform: translateY(-1px) !important; }
+      .atri-container .bg-\\[\\#e8decb\\] { background: transparent !important; box-shadow: none !important; padding: 0 !important; gap: 2px !important; border-radius: 0 !important; }
+      .atri-container .bg-\\[\\#e8decb\\] button { border-radius: 0 !important; padding: 6px 36px !important; box-shadow: none !important; font-size: 0.8rem !important; }
+      .atri-container .bg-\\[\\#e8decb\\] button.bg-\\[\\#ba3f42\\] { background: #5ab4ed !important; color: white !important; }
+      .atri-container .bg-\\[\\#e8decb\\] button.text-\\[\\#7a6b5d\\] { background: #d1d5db !important; color: white !important; }
+      .atri-container .bg-white\\/60 button.text-red-500 { background: transparent !important; box-shadow: none !important; color: #ef4444 !important; }
+      `}} />
  
  {/* ✨ 新增：全局备份与恢复进度条 (左上角悬浮) */}
       {backupProgress.visible && (
@@ -2475,7 +2499,7 @@ export default function App() {
               </div>
             </div>
           </div>
-          <div className="absolute bottom-6 right-8 text-white/60 font-bold text-sm drop-shadow-md pointer-events-none">v3.50</div>
+          <div className="absolute bottom-6 right-8 text-white/60 font-bold text-sm drop-shadow-md pointer-events-none">v3.60</div>
         </div>
       )}
 
@@ -2656,49 +2680,51 @@ export default function App() {
         </>
       )}
 
-      {/* SAVE / LOAD UI */}
+     {/* SAVE / LOAD UI */}
       {isSaveLoadUIOpen && !visualAdjustMode && (
         <div className="fixed inset-0 z-[100] flex flex-col font-sans select-none pointer-events-auto bg-gradient-to-b from-[#87CEEB] to-[#E0F6FF]">
-          <div className="flex justify-between items-end px-12 pt-8 pb-4">
-             <h1 className="text-7xl font-bold text-white tracking-widest drop-shadow-md">{slMode === 'save' ? 'SAVE' : 'LOAD'}</h1>
-             <div className="flex items-end">
-                <div className="text-xs text-white/80 bg-black/20 px-3 py-1 rounded-t-md mb-0.5 mr-6 backdrop-blur-sm">SYSTEM Window</div>
-                <button onClick={() => setSlMode('save')} className={`px-10 py-3 rounded-tl-xl font-bold tracking-wider text-sm transition-all shadow-md ${slMode === 'save' ? 'bg-white text-[#4fa0d8] h-12' : 'bg-[#4fa0d8] text-white hover:bg-[#5db4f0] h-10 border-t border-l border-white/40'}`}>SAVE</button>
-                <button onClick={() => setSlMode('load')} className={`px-10 py-3 font-bold tracking-wider text-sm transition-all shadow-md ${slMode === 'load' ? 'bg-white text-[#4fa0d8] h-12' : 'bg-[#4fa0d8] text-white hover:bg-[#5db4f0] h-10 border-t border-l border-white/40'}`}>LOAD</button>
-                <button onClick={handleQuickLoad} className="px-10 py-3 font-bold tracking-wider text-sm transition-all shadow-md bg-[#4fa0d8] text-white hover:bg-[#5db4f0] h-10 border-t border-l border-white/40">Q.LOAD</button>
-                <button onClick={() => showToast("语音回放库暂未实现", "info")} className="px-10 py-3 rounded-tr-xl font-bold tracking-wider text-sm transition-all shadow-md bg-[#4fa0d8] text-white hover:bg-[#5db4f0] h-10 border-t border-l border-r border-white/40">VOICE</button>
+          {/* 修复：使用 flex-wrap 让移动端按钮自由换行，不被挤出屏幕 */}
+          <div className="flex flex-wrap justify-between items-center md:items-end px-4 md:px-12 pt-4 md:pt-8 pb-2 md:pb-4 shrink-0 gap-4">
+             <h1 className="text-4xl md:text-7xl font-bold text-white tracking-widest drop-shadow-md leading-none w-full md:w-auto text-center md:text-left">{slMode === 'save' ? 'SAVE' : 'LOAD'}</h1>
+             <div className="flex flex-wrap justify-center md:justify-end items-end w-full md:w-auto gap-1 md:gap-0">
+                <div className="hidden md:block text-xs text-white/80 bg-black/20 px-3 py-1 rounded-t-md mb-0.5 mr-6 backdrop-blur-sm">SYSTEM Window</div>
+                <button onClick={() => setSlMode('save')} className={`px-4 md:px-10 py-2 md:py-3 md:rounded-tl-xl rounded-md md:rounded-none font-bold tracking-wider text-xs md:text-sm transition-all shadow-md ${slMode === 'save' ? 'bg-white text-[#4fa0d8] h-10 md:h-12' : 'bg-[#4fa0d8] text-white hover:bg-[#5db4f0] h-10 border border-white/40 md:border-b-0'}`}>SAVE</button>
+                <button onClick={() => setSlMode('load')} className={`px-4 md:px-10 py-2 md:py-3 font-bold tracking-wider text-xs md:text-sm transition-all shadow-md rounded-md md:rounded-none ${slMode === 'load' ? 'bg-white text-[#4fa0d8] h-10 md:h-12' : 'bg-[#4fa0d8] text-white hover:bg-[#5db4f0] h-10 border border-white/40 md:border-b-0 md:border-l-0'}`}>LOAD</button>
+                <button onClick={handleQuickLoad} className="px-4 md:px-10 py-2 md:py-3 font-bold tracking-wider text-xs md:text-sm transition-all shadow-md bg-[#4fa0d8] text-white hover:bg-[#5db4f0] h-10 rounded-md md:rounded-none border border-white/40 md:border-b-0 md:border-l-0">Q.LOAD</button>
+                <button onClick={() => showToast("语音回放库暂未实现", "info")} className="px-4 md:px-10 py-2 md:py-3 md:rounded-tr-xl rounded-md md:rounded-none font-bold tracking-wider text-xs md:text-sm transition-all shadow-md bg-[#4fa0d8] text-white hover:bg-[#5db4f0] h-10 border border-white/40 md:border-b-0 md:border-l-0">VOICE</button>
              </div>
           </div>
           
-          <div className="flex-1 px-12 py-4 flex flex-col w-full max-w-7xl mx-auto">
+          {/* 修复：追加 min-h-0 强制内部的 flex-1 生效独立滚动，不再把屏幕顶破 */}
+          <div className="flex-1 min-h-0 px-4 md:px-12 py-2 md:py-4 flex flex-col w-full max-w-7xl mx-auto overflow-y-auto light-scrollbar">
              {slPage === 1 && (
-               <div className="mb-4 flex flex-col md:flex-row gap-4">
-                 <div onClick={() => slMode === 'load' ? handleQuickLoad() : handleQuickSave()} className="flex-1 group relative w-full h-16 bg-gradient-to-r from-amber-500/90 to-orange-400/90 border-2 border-white/80 rounded-sm p-3 cursor-pointer hover:border-white shadow-lg transition-all overflow-hidden flex items-center justify-between px-6">
-                   <div className="flex items-center gap-4"><span className="text-white font-black text-lg drop-shadow-md italic">No.000</span><span className="text-white font-bold text-lg drop-shadow-md">{quickSaveData ? quickSaveData.title : 'No Data (快捷栏位)'}</span></div>
-                   <div className="text-white/80 text-sm font-bold tracking-wider">{quickSaveData ? quickSaveData.date : ''}</div>
+               <div className="mb-3 md:mb-4 flex flex-col md:flex-row gap-2 md:gap-4 shrink-0">
+                 <div onClick={() => slMode === 'load' ? handleQuickLoad() : handleQuickSave()} className="flex-1 group relative w-full h-auto md:h-16 py-2 md:py-3 bg-gradient-to-r from-amber-500/90 to-orange-400/90 border-2 border-white/80 rounded-sm cursor-pointer hover:border-white shadow-lg transition-all overflow-hidden flex flex-col md:flex-row items-start md:items-center justify-between px-4 md:px-6">
+                   <div className="flex items-center gap-2 md:gap-4 w-full md:w-auto"><span className="text-white font-black text-sm md:text-lg drop-shadow-md italic">No.000</span><span className="text-white font-bold text-sm md:text-lg drop-shadow-md truncate flex-1">{quickSaveData ? quickSaveData.title : 'No Data (快捷栏位)'}</span></div>
+                   <div className="text-white/80 text-[10px] md:text-sm font-bold tracking-wider mt-1 md:mt-0">{quickSaveData ? quickSaveData.date : ''}</div>
                    <div className="absolute inset-0 bg-white/0 group-hover:bg-white/20 transition-colors"></div>
                  </div>
-                 <div onClick={() => slMode === 'load' ? handleAutoLoad() : showToast('自动存档位仅供读取，系统会在后台自动覆盖。', 'info')} className="flex-1 group relative w-full h-16 bg-gradient-to-r from-cyan-600/90 to-blue-500/90 border-2 border-white/80 rounded-sm p-3 cursor-pointer hover:border-white shadow-lg transition-all overflow-hidden flex items-center justify-between px-6">
-                   <div className="flex items-center gap-4"><span className="text-white font-black text-lg drop-shadow-md italic">AUTO</span><span className="text-white font-bold text-lg drop-shadow-md">{autoSaveData ? autoSaveData.title : 'No Data (自动存档)'}</span></div>
-                   <div className="text-white/80 text-sm font-bold tracking-wider">{autoSaveData ? autoSaveData.date : ''}</div>
+                 <div onClick={() => slMode === 'load' ? handleAutoLoad() : showToast('自动存档位仅供读取，系统会在后台自动覆盖。', 'info')} className="flex-1 group relative w-full h-auto md:h-16 py-2 md:py-3 bg-gradient-to-r from-cyan-600/90 to-blue-500/90 border-2 border-white/80 rounded-sm cursor-pointer hover:border-white shadow-lg transition-all overflow-hidden flex flex-col md:flex-row items-start md:items-center justify-between px-4 md:px-6">
+                   <div className="flex items-center gap-2 md:gap-4 w-full md:w-auto"><span className="text-white font-black text-sm md:text-lg drop-shadow-md italic">AUTO</span><span className="text-white font-bold text-sm md:text-lg drop-shadow-md truncate flex-1">{autoSaveData ? autoSaveData.title : 'No Data (自动存档)'}</span></div>
+                   <div className="text-white/80 text-[10px] md:text-sm font-bold tracking-wider mt-1 md:mt-0">{autoSaveData ? autoSaveData.date : ''}</div>
                    <div className="absolute inset-0 bg-white/0 group-hover:bg-white/20 transition-colors"></div>
                  </div>
                </div>
              )}
 
-             <div className="grid grid-cols-2 gap-x-8 gap-y-4 flex-1">
+             <div className="grid grid-cols-2 gap-x-2 md:gap-x-8 gap-y-2 md:gap-y-4 flex-1 pb-4">
                 {Array.from({length: 10}).map((_, i) => {
                    const slotId = (slPage - 1) * 10 + i + 1; const data = saveSlots[slotId]; const isEditing = editingSlotId === slotId;
                    return (
-                     <div key={slotId} onClick={() => handleSlotClick(slotId)} className="group relative bg-[#8fbf8f] border-[3px] border-white/80 rounded-sm p-3 cursor-pointer hover:border-white hover:bg-[#7ebd7e] shadow-[0_4px_10px_rgba(0,0,0,0.1)] transition-all overflow-hidden flex flex-col justify-between">
+                     <div key={slotId} onClick={() => handleSlotClick(slotId)} className="group relative bg-[#8fbf8f] border-[2px] md:border-[3px] border-white/80 rounded-sm p-2 md:p-3 cursor-pointer hover:border-white hover:bg-[#7ebd7e] shadow-[0_4px_10px_rgba(0,0,0,0.1)] transition-all overflow-hidden flex flex-col justify-between min-h-[80px] md:min-h-[120px]">
                        <div className="flex justify-between items-start">
-                         <span className="text-white font-black text-sm drop-shadow-md">No.{String(slotId).padStart(3, '0')}</span>
-                         {data && !isEditing && slMode === 'save' && (<button onClick={(e) => { e.stopPropagation(); setEditingSlotId(slotId); setEditSaveName(data.title); }} className="opacity-0 group-hover:opacity-100 text-white/80 hover:text-white transition-opacity p-1 z-10" title="修改存档名称"><Edit3 size={16} /></button>)}
+                         <span className="text-white font-black text-xs md:text-sm drop-shadow-md">No.{String(slotId).padStart(3, '0')}</span>
+                         {data && !isEditing && slMode === 'save' && (<button onClick={(e) => { e.stopPropagation(); setEditingSlotId(slotId); setEditSaveName(data.title); }} className="opacity-100 md:opacity-0 group-hover:opacity-100 text-white/80 hover:text-white transition-opacity p-0.5 md:p-1 z-10" title="修改存档名称"><Edit3 size={14} className="md:w-4 md:h-4" /></button>)}
                        </div>
-                       <div className="flex-1 flex items-center justify-center relative z-10">
-                         {isEditing ? (<input ref={editInputRef} type="text" value={editSaveName} onChange={(e) => setEditSaveName(e.target.value)} onBlur={handleSaveNameConfirm} onKeyDown={(e) => e.key === 'Enter' && handleSaveNameConfirm()} onClick={(e) => e.stopPropagation()} className="w-3/4 bg-white/20 border-b-2 border-white text-white text-center text-xl font-bold outline-none placeholder-white/50 px-2" placeholder="输入存档名..."/>) : data ? (<span className="text-white text-2xl font-bold drop-shadow-md tracking-wider truncate px-4">{data.title}</span>) : (<span className="text-white/80 text-3xl font-bold tracking-widest drop-shadow-sm opacity-60">No Data</span>)}
+                       <div className="flex-1 flex items-center justify-center relative z-10 w-full">
+                         {isEditing ? (<input ref={editInputRef} type="text" value={editSaveName} onChange={(e) => setEditSaveName(e.target.value)} onBlur={handleSaveNameConfirm} onKeyDown={(e) => e.key === 'Enter' && handleSaveNameConfirm()} onClick={(e) => e.stopPropagation()} className="w-11/12 md:w-3/4 bg-white/20 border-b-2 border-white text-white text-center text-sm md:text-xl font-bold outline-none placeholder-white/50 px-1 md:px-2" placeholder="输入存档名..."/>) : data ? (<span className="text-white text-sm md:text-2xl font-bold drop-shadow-md tracking-wider truncate px-1 md:px-4 w-full text-center">{data.title}</span>) : (<span className="text-white/80 text-lg md:text-3xl font-bold tracking-widest drop-shadow-sm opacity-60">No Data</span>)}
                        </div>
-                       <div className="text-right text-white/80 text-xs font-bold tracking-wider h-4">{!isEditing && data ? data.date : ''}</div>
+                       <div className="text-right text-white/80 text-[8px] md:text-xs font-bold tracking-wider h-3 md:h-4">{!isEditing && data ? data.date : ''}</div>
                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-[150%] group-hover:animate-[shimmer_1.5s_infinite]"></div>
                      </div>
                    );
@@ -2706,23 +2732,24 @@ export default function App() {
              </div>
           </div>
           
-          <div className="flex justify-between items-center px-12 py-5 bg-white/30 backdrop-blur-md border-t-2 border-white/50 shadow-[0_-10px_30px_rgba(0,0,0,0.05)]">
-             <button onClick={() => { if (window.confirm("确定要清空所有常规存档吗？(不可恢复)")) { setSaveSlots({}); } }} className="px-6 py-2 bg-[#8fbf8f] text-white font-bold tracking-widest rounded-sm border border-white hover:bg-red-400 transition-colors">ALL Delete</button>
-             <div className="flex gap-1.5 items-end">
+         {/* 修复：移动端将控制按钮换行并居中，防止互相重叠 */}
+          <div className="flex flex-wrap justify-center md:justify-between items-center px-4 md:px-12 py-3 md:py-5 bg-white/30 backdrop-blur-md border-t-2 border-white/50 shadow-[0_-10px_30px_rgba(0,0,0,0.05)] shrink-0 gap-4">
+             <button onClick={() => { if (window.confirm("确定要清空所有常规存档吗？(不可恢复)")) { setSaveSlots({}); } }} className="px-4 md:px-6 py-2 bg-[#8fbf8f] text-white font-bold tracking-widest rounded-md border border-white hover:bg-red-400 transition-colors text-xs md:text-base hidden md:block">ALL Delete</button>
+             <div className="flex gap-1.5 md:gap-2 items-end flex-wrap justify-center">
                {Array.from({length: 10}).map((_, i) => {
                  const p = i + 1; const isActive = slPage === p;
                  return (
                    <div key={p} onClick={() => setSlPage(p)} className={`cursor-pointer flex flex-col items-center group transition-all`}>
-                     <span className={`text-[10px] font-bold ${isActive ? 'text-amber-500' : 'text-emerald-600 group-hover:text-emerald-500'}`}>Page</span>
-                     <div className={`w-8 h-8 flex items-center justify-center clip-diamond font-black text-lg ${isActive ? 'bg-amber-400 text-white scale-110 shadow-lg' : 'bg-emerald-400/80 text-white group-hover:bg-emerald-400'}`} style={{ clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)' }}>{p}</div>
+                     <span className={`text-[8px] md:text-[10px] font-bold ${isActive ? 'text-amber-500' : 'text-emerald-600 group-hover:text-emerald-500'}`}>Page</span>
+                     <div className={`w-6 h-6 md:w-8 md:h-8 flex items-center justify-center clip-diamond font-black text-sm md:text-lg ${isActive ? 'bg-amber-400 text-white scale-110 shadow-lg' : 'bg-emerald-400/80 text-white group-hover:bg-emerald-400'}`} style={{ clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)' }}>{p}</div>
                    </div>
                  );
                })}
              </div>
-             <div className="flex gap-2">
-               <button className="px-6 py-2 bg-[#4fa0d8] text-white font-bold tracking-widest rounded-sm border border-white hover:bg-[#5db4f0] transition-colors" onClick={handleReturnToTitle}>返回到标题</button>
-               <button className="px-6 py-2 bg-[#4fa0d8] text-white font-bold tracking-widest rounded-sm border border-white hover:bg-[#5db4f0] transition-colors" onClick={() => setIsSaveLoadUIOpen(false)}>返回到游戏</button>
-               <button className="px-6 py-2 bg-[#4fa0d8] text-white font-bold tracking-widest rounded-sm border border-white hover:bg-red-400 transition-colors" onClick={handleExitGame}>退出游戏</button>
+             <div className="flex gap-2 w-full md:w-auto justify-center">
+               <button className="flex-1 md:flex-none px-3 md:px-6 py-2 bg-[#4fa0d8] text-white font-bold tracking-widest rounded-md border border-white hover:bg-[#5db4f0] transition-colors text-[10px] sm:text-xs md:text-base" onClick={handleReturnToTitle}>返回标题</button>
+               <button className="flex-1 md:flex-none px-3 md:px-6 py-2 bg-[#4fa0d8] text-white font-bold tracking-widest rounded-md border border-white hover:bg-[#5db4f0] transition-colors text-[10px] sm:text-xs md:text-base" onClick={() => setIsSaveLoadUIOpen(false)}>返回游戏</button>
+               <button className="flex-1 md:flex-none px-3 md:px-6 py-2 bg-red-400 text-white font-bold tracking-widest rounded-md border border-white hover:bg-red-500 transition-colors text-[10px] sm:text-xs md:text-base" onClick={handleExitGame}>退出游戏</button>
              </div>
           </div>
           <style dangerouslySetInnerHTML={{__html: ` @keyframes shimmer { 100% { transform: translateX(150%); } } `}} />
@@ -2773,18 +2800,17 @@ export default function App() {
         </div>
       )}
 
-      {/* 柚子社风格浅色主题系统设置面板 */}
+     {/* ✨ 苍穹视觉风格 (ATRI) 浅色主题系统设置面板 */}
       {isSettingsOpen && !visualAdjustMode && (
-       <div className="fixed inset-0 z-[9999] bg-black/50 backdrop-blur-sm flex items-center justify-center pointer-events-auto">
-          <div className="w-[95%] max-w-5xl h-[85vh] bg-[#fdfaf5] rounded-xl overflow-hidden flex flex-col shadow-[0_20px_60px_rgba(0,0,0,0.4)] border-2 border-[#d9c5b2] relative" style={{ backgroundImage: 'repeating-linear-gradient(45deg, rgba(0,0,0,0.015) 0px, rgba(0,0,0,0.015) 2px, transparent 2px, transparent 4px)' }}>
-            <div className="flex h-16 bg-[#efe6d5] border-b border-[#d9c5b2] shrink-0 overflow-hidden">
-               {/* ✨ 优化：在手机端隐藏左侧标题，为菜单腾出空间 */}
-               <div className="bg-[#c44a4a] text-white hidden md:flex flex-col justify-center px-8 shrink-0 clip-polygon relative z-10 shadow-md">
-                  <span className="text-xl font-black tracking-widest text-shadow-sm">系统设定</span>
-                  <span className="text-[10px] tracking-widest opacity-80 uppercase font-bold">System Config</span>
+       <div className="fixed inset-0 z-[9999] bg-black/50 backdrop-blur-sm flex items-center justify-center pointer-events-auto p-0">
+          <div className="w-full h-full flex flex-col shadow-2xl relative atri-container" style={{ backgroundColor: '#8dc3f0', backgroundImage: 'radial-gradient(circle at 15% 30%, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0) 30%), radial-gradient(circle at 85% 10%, rgba(255, 255, 255, 0.7) 0%, rgba(255, 255, 255, 0) 35%), radial-gradient(circle at 50% 80%, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0) 60%), linear-gradient(180deg, #7dbcf6 0%, #d8f0fe 40%, #ffffff 90%)' }}>
+            <div className="flex h-[60px] md:h-[90px] bg-white/30 border-b-4 border-[#5ab4ed] shrink-0 items-end relative overflow-visible flex-nowrap atri-header">
+               {/* 苍穹视觉 SYSTEM 大字 */}
+               <div className="flex flex-col justify-end px-4 md:px-12 pb-[10px] md:pb-[15px] shrink-0 relative z-10 bg-transparent shadow-none">
+                  <span className="font-normal text-white text-3xl md:text-5xl tracking-[2px] md:tracking-[5px] drop-shadow-[2px_2px_8px_rgba(30,58,138,0.4)]" style={{ fontFamily: 'Arial, sans-serif' }}>SYSTEM</span>
                </div>
-               {/* ✨ 优化：增加 shrink-0 和 whitespace-nowrap 允许横向滑动 */}
-               <div className="flex-1 flex overflow-x-auto hide-scrollbar bg-[#fdfaf5]/50 items-end px-2 md:px-4 gap-1 md:gap-2">
+               {/* 选项卡区域：强制横向滑动与不换行防打乱 */}
+               <div className="flex-1 flex overflow-x-auto items-end gap-[2px] px-0 pb-0 scroll-smooth atri-tabs" style={{ WebkitOverflowScrolling: 'touch' }}>
                   {[ 
                     { id: 'visual', icon: <ImageIcon size={18}/>, label: '视觉设定', hideInStory: false }, 
                     { id: 'text', icon: <Type size={18}/>, label: '文本互动', hideInStory: true }, 
@@ -2795,15 +2821,15 @@ export default function App() {
                     { id: 'mods', icon: <Puzzle size={18}/>, label: '插件模组', hideInStory: false },
                     { id: 'about', icon: <Info size={18}/>, label: '关于系统', hideInStory: false }
                   ].filter(t => activePluginUI === 'story_mode_dlc' ? (t.showInStoryOnly || !t.hideInStory) : !t.showInStoryOnly).map(tab => (
-                    <button key={tab.id} onClick={() => setSettingsTab(tab.id)} className={`shrink-0 whitespace-nowrap flex items-center gap-1.5 md:gap-2 px-3 md:px-5 py-2.5 md:py-3 font-bold text-xs md:text-sm transition-all border-b-4 rounded-t-lg ${settingsTab === tab.id ? 'bg-white border-[#c44a4a] text-[#c44a4a] shadow-[0_-4px_10px_rgba(0,0,0,0.05)]' : 'border-transparent text-[#7a6b5d] hover:bg-[#e8decb]'}`}>
-                      {tab.icon} {tab.label}
+                    <button key={tab.id} onClick={() => setSettingsTab(tab.id)} className={`shrink-0 whitespace-nowrap flex items-center justify-center relative px-[14px] md:px-[20px] py-[10px] md:py-[12px] font-bold text-[0.85rem] md:text-sm transition-all border-none rounded-none z-10 atri-tab-btn ${settingsTab === tab.id ? 'text-[#5ab4ed] active-tab' : 'text-white'}`}>
+                      {tab.label}
                     </button>
                   ))}
                </div>
-               <button onClick={() => setIsSettingsOpen(false)} className="px-4 md:px-6 hover:bg-black/5 transition-colors shrink-0 border-l border-[#d9c5b2]"><X size={20} className="md:w-6 md:h-6 text-[#888] hover:text-[#c44a4a] transition-colors"/></button>
+               <button onClick={() => setIsSettingsOpen(false)} className="w-[60px] md:w-[90px] h-full flex items-center justify-center bg-white/20 hover:bg-white/40 transition-colors shrink-0 border-none"><X size={24} className="md:w-9 md:h-9 text-white transition-colors"/></button>
             </div>
 
-           <div className="flex-1 overflow-y-auto p-8 light-scrollbar text-[#4a4036]">
+           <div className="flex-1 overflow-y-auto py-8 px-[5%] light-scrollbar text-[#1e3a8a]">
               {settingsTab === 'visual' && (
                 <div className="space-y-8 animate-fade-in">
                   
@@ -3567,7 +3593,7 @@ export default function App() {
                     </div>
 
                     <div className="text-center pt-6 mt-4 border-t-2 border-dashed border-[#e6d5b8] text-xs text-[#a89578] font-bold tracking-widest leading-relaxed">
-                      GalGame Web Chat Engine Ver.3.50<br/>
+                      GalGame Web Chat Engine Ver.3.60<br/>
                       Powered by React & Tailwind CSS
                     </div>
                   </div>
@@ -3575,15 +3601,13 @@ export default function App() {
                 </div>
               )}
 
-            </div>
-            {/* Footer 区域 移动端适配 */}
-            <div className="h-auto md:h-16 bg-[#2c2b29] shrink-0 flex flex-col md:flex-row justify-between items-center p-3 md:px-8 border-t-[3px] border-[#ba3f42] gap-3 md:gap-0">
-              <div className="hidden md:block text-white/30 text-[10px] font-black tracking-widest uppercase">GalGame Web Chat Settings</div>
-              <div className="flex flex-wrap justify-center gap-2 md:gap-4 w-full md:w-auto">
-                <button onClick={handleReturnToTitle} className="flex-1 md:flex-none justify-center bg-transparent hover:bg-white/10 text-white/80 border border-white/20 px-3 md:px-6 py-1.5 md:py-2 rounded-full font-bold text-xs md:text-sm transition-colors flex items-center gap-1.5"><ArrowLeft size={14}/> 主界面</button>
-                <button onClick={handleExitGame} className="flex-1 md:flex-none justify-center bg-transparent hover:bg-red-500/20 text-red-300 border border-red-500/30 px-3 md:px-6 py-1.5 md:py-2 rounded-full font-bold text-xs md:text-sm transition-colors flex items-center gap-1.5 md:mr-4"><LogOut size={14}/> 退出</button>
-                <button onClick={() => setIsSettingsOpen(false)} className="w-full md:w-auto bg-[#ba3f42] hover:bg-[#d64b4f] text-white px-6 md:px-10 py-2 md:py-2 rounded-full font-bold tracking-widest text-xs md:text-sm transition-all shadow-lg border border-[#e86b6e] hover:scale-105">保存并关闭</button>
-              </div>
+           </div>
+            {/* Footer 区域 苍穹视觉适配 */}
+            <div className="bg-white/40 border-t-[3px] border-white shrink-0 flex flex-wrap justify-center md:justify-end items-center p-[15px] md:px-[5%] gap-[8px] md:gap-[15px]">
+              <div className="hidden">GalGame Web Chat Settings</div>
+              <button onClick={handleReturnToTitle} className="w-full md:w-auto bg-[#5ab4ed] hover:bg-[#3ea3e6] hover:-translate-y-[1px] text-white px-[15px] md:px-[30px] py-[10px] font-bold text-[0.75rem] md:text-sm tracking-normal md:tracking-[2px] transition-all shadow-[2px_2px_5px_rgba(0,0,0,0.1)]">主界面</button>
+              <button onClick={handleExitGame} className="w-full md:w-auto bg-[#5ab4ed] hover:bg-[#3ea3e6] hover:-translate-y-[1px] text-white px-[15px] md:px-[30px] py-[10px] font-bold text-[0.75rem] md:text-sm tracking-normal md:tracking-[2px] transition-all shadow-[2px_2px_5px_rgba(0,0,0,0.1)]">退出</button>
+              <button onClick={() => setIsSettingsOpen(false)} className="w-full md:w-auto bg-[#5ab4ed] hover:bg-[#3ea3e6] hover:-translate-y-[1px] text-white px-[15px] md:px-[30px] py-[10px] font-bold text-[0.75rem] md:text-sm tracking-normal md:tracking-[2px] transition-all shadow-[2px_2px_5px_rgba(0,0,0,0.1)]">保存并关闭</button>
             </div>
           </div>
         </div>
